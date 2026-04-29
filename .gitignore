@@ -1,0 +1,25 @@
+# Environment — never commit secrets
+.env
+
+# Your personal candidate profile (copy candidate-profile.example.js → candidate-profile.js)
+src/candidate-profile.js
+
+# Packaged skill file (regenerated locally)
+*.skill
+
+# Dependencies
+node_modules/
+
+# SQLite database (local state — no need to version-control)
+jobs.db
+jobs.db-wal
+jobs.db-shm
+
+# Generated output
+output/
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/

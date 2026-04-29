@@ -1,0 +1,21 @@
+{
+  "name": "job-discovery-agent",
+  "version": "1.0.0",
+  "description": "Daily job discovery agent for growth and strategy roles",
+  "type": "module",
+  "engines": {
+    "node": ">=22.15.0"
+  },
+  "scripts": {
+    "setup": "node scripts/setup.js",
+    "start": "node src/index.js",
+    "run-now": "node src/index.js --run-now"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.36.0",
+    "@sendgrid/mail": "^8.1.0",
+    "cheerio": "^1.0.0",
+    "dotenv": "^16.4.5",
+    "node-cron": "^3.0.3"
+  }
+}
