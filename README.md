@@ -24,11 +24,9 @@ Built to run inside [Claude Code](https://claude.ai/code) with the Chrome extens
 
 ---
 
-## Quick Start
+## Setup
 
 ### 1. Prerequisites
-
-Before setting up, make sure you have:
 
 | Requirement | How to check / get it |
 |---|---|
@@ -45,33 +43,31 @@ cd job-discovery-agent
 npm install
 ```
 
-### 3. Run the setup wizard in Claude Code
-
-Open Claude Code in this project directory and type:
+### 3. Open Claude Code in this directory, then paste this
 
 ```
 /job-hunt-setup
 ```
 
-The setup wizard handles everything in the chat — no terminal commands needed:
+That's it. Claude walks you through the rest — no terminal commands, no config files to edit, no API key needed.
 
-- 📋 **Prerequisites check** — confirms Node.js version and Chrome extension
-- 📄 **Resume** — attach your `.pdf`, `.txt`, or `.md` resume file, or paste the text directly. Claude reads it and generates a detailed, specific profile.
+The wizard will ask for:
+- 📄 **Your resume** — attach a `.pdf`, `.txt`, or `.md` file, or paste the text. Claude reads it and builds your scoring profile.
 - 🎯 **Target titles** — every variant you'd consider (titles vary a lot across companies)
-- 📍 **Cities** — up to 3 cities for LinkedIn searches; location filters updated in all scrapers
+- 📍 **Cities** — up to 3 cities; LinkedIn searches and location filters update automatically
 - 💰 **Salary floor** — jobs listed below this get scored down
 - 🏢 **Industries** — what kinds of companies you're targeting
 - 🚫 **What to avoid** — industries, roles, or company types to filter out
 
-Claude writes `src/candidate-profile.js`, updates all location and keyword configs, sets the project path in the skill files, and gives you a clear checklist at the end. No API key required.
+At the end, Claude writes `src/candidate-profile.js`, updates all scrapers, and gives you a checklist of what's next.
 
 ### 4. Install the /job-hunt skill
 
-After setup, repackage `.claude/skill/SKILL.md` and double-click the `.skill` file to install it in Claude. See `CLAUDE.md` for the exact repackage command.
+After setup, repackage `.claude/skill/SKILL.md` and double-click the `.skill` file to install it in Claude. See `CLAUDE.md` for the exact command.
 
-### 5. Run your first job search
+### 5. Run your first search
 
-Open Claude Code and type:
+Open Claude Code and paste this:
 
 ```
 /job-hunt
@@ -79,7 +75,7 @@ Open Claude Code and type:
 
 Claude scrapes Greenhouse, Lever, and LinkedIn, scores every new job against your profile, and opens the dashboard at **http://localhost:3033**.
 
-To run Greenhouse + Lever only (no LinkedIn, no Claude session needed):
+To run Greenhouse + Lever only (no LinkedIn):
 ```bash
 npm run run-now
 ```
@@ -90,15 +86,15 @@ npm run run-now
 
 ### Your candidate profile
 
-The `setup` wizard creates `src/candidate-profile.js` — a git-ignored file that contains two things:
+Setup creates `src/candidate-profile.js` — a git-ignored file with two things:
 
 **`CANDIDATE_PROFILE`** — your work history, key achievements, target roles, ideal company types, and what you want to avoid. Claude reads this when scoring every job.
 
-**`SCORING_RUBRIC`** — how Claude should weight different signals: title seniority, company type, location, salary. You define what a 9/10 looks like vs. a 5/10.
+**`SCORING_RUBRIC`** — how Claude should weight signals: title seniority, company type, location, salary. You define what a 9/10 looks like vs. a 5/10.
 
 The richer and more specific your profile, the more accurate the scoring. See `src/candidate-profile.example.js` for a fully worked example.
 
-To update your profile at any time — you change jobs, raise your salary floor, add new target titles — just edit `src/candidate-profile.js`. No git involvement, changes take effect on the next run.
+To update your profile — new job, new salary floor, new target titles — just edit `src/candidate-profile.js`. Changes take effect on the next run.
 
 ### The dashboard
 
@@ -106,10 +102,10 @@ The dashboard at `http://localhost:3033` shows all discovered jobs sorted by sco
 
 | Feature | Description |
 |---|---|
-| Score filter | Show only 8+, 7+, or all jobs |
-| Score badges | Green (9–10) · Amber (7–8) · Red (<7) |
+| Score filter | Show only 9–10, 7–8, or all jobs |
+| Score badges | Color-coded by fit — green, blue, amber, red |
 | Apply button | Direct link to the ATS page or company careers site |
-| Mark applied | Moves job to "Applied" tab; auto-hides on next run |
+| Mark applied | Moves job to "Applied" state |
 | Archive | Hides irrelevant jobs without deleting them |
 
 ---
@@ -121,7 +117,7 @@ The dashboard at `http://localhost:3033` shows all discovered jobs sorted by sco
 **Greenhouse** — add slugs to `src/scrapers/greenhouse.js`:
 ```js
 const COMPANIES = [
-  'discord', 'airbnb', 'your-company-here',  // ← add any company on Greenhouse
+  'discord', 'airbnb', 'your-company-here',
 ];
 ```
 Find a company's slug at `https://boards.greenhouse.io/{slug}`.
@@ -129,28 +125,26 @@ Find a company's slug at `https://boards.greenhouse.io/{slug}`.
 **Lever** — add slugs to `src/scrapers/lever.js`:
 ```js
 const COMPANIES = [
-  'spotify', 'duolingo', 'your-company-here',  // ← add any company on Lever
+  'spotify', 'duolingo', 'your-company-here',
 ];
 ```
 Find a company's slug at `https://jobs.lever.co/{slug}`.
 
-### Change LinkedIn search titles or cities
+### Change your search titles or cities
 
-Re-run `npm run setup` — it regenerates the LinkedIn search URLs and location filters from your answers.
-
-Or edit `.claude/skill/SKILL.md` directly and update the `keywords=` parameter in the three LinkedIn search URLs.
+Re-run the setup wizard in Claude Code:
+```
+/job-hunt-setup
+```
+It regenerates LinkedIn search URLs and location filters from your updated answers.
 
 ### Change the scoring model
 
-In `src/scorer.js`, update the `model` field:
+In `src/scorer.js`:
 ```js
 model: 'claude-opus-4-5',   // most nuanced, slower
 model: 'claude-haiku-4-5',  // fastest, cheapest
 ```
-
-### Change the email score threshold
-
-In `src/index.js`, change `getEmailableJobs(7)` to your preferred minimum.
 
 ### Change the cron schedule
 
@@ -159,22 +153,6 @@ In `src/index.js`:
 cron.schedule('0 8 * * *', ...)    // 8 AM daily (default)
 cron.schedule('0 7,17 * * *', ...) // 7 AM and 5 PM
 ```
-
----
-
-## API Keys
-
-All API keys go in `.env` (created automatically by the setup wizard from `.env.example`).
-
-| Key | Required? | Purpose |
-|---|---|---|
-| `ANTHROPIC_API_KEY` | Optional* | Standalone scoring (`npm start`, `npm run run-now`) |
-| `SERPAPI_KEY` | Optional | Google Jobs as a 4th source — 100 free searches/month |
-| `SENDGRID_API_KEY` | Optional | Email digest of top-scoring jobs |
-| `SENDGRID_FROM_EMAIL` | Optional | Verified sender for SendGrid |
-| `ALERT_EMAIL` | Optional | Where email digests are delivered |
-
-*Not needed when running via the `/job-hunt` Claude skill — scoring runs natively in your Claude session.
 
 ---
 
@@ -195,15 +173,14 @@ job-discovery-agent/
 │       ├── linkedin.js              # LinkedIn guest API
 │       └── serpapi.js               # Google Jobs via SerpAPI
 ├── scripts/
-│   ├── setup.js                     # ← Setup wizard (start here)
+│   ├── setup.js                     # Terminal fallback for setup
 │   ├── serve-dashboard.js           # Local HTTP dashboard on port 3033
 │   └── store-linkedin-jobs.js       # Stores Chrome MCP LinkedIn results
 ├── .claude/
 │   ├── skill/SKILL.md               # /job-hunt slash command definition
+│   ├── skill/SETUP.md               # /job-hunt-setup wizard definition
 │   └── scheduled-task/SKILL.md      # daily-job-hunt scheduled task definition
-├── .env                             # Your secrets (git-ignored)
-├── .env.example                     # Template showing required keys
-├── jobs.db                          # SQLite database (git-ignored, auto-created)
+├── .env.example                     # Optional integrations (SerpAPI, SendGrid)
 ├── CLAUDE.md                        # Instructions for Claude Code
 └── package.json
 ```
@@ -222,13 +199,13 @@ job-discovery-agent/
 ## Data Sources
 
 ### Greenhouse & Lever
-Both expose public JSON APIs — no authentication needed. The agent queries curated lists of ~70 companies tuned for consumer tech, DTC, fintech, health/wellness, and marketplace roles. Easily extensible to any company using either ATS.
+Both expose public JSON APIs — no authentication needed. The agent queries curated lists of companies tuned for consumer tech, DTC, fintech, health/wellness, and marketplace roles. Easily extensible to any company using either ATS.
 
 ### LinkedIn
-Uses the Chrome extension to scrape LinkedIn job search results. Claude controls the browser you're already logged into — no API key or scraper workarounds needed. LinkedIn job IDs expire quickly, so the agent captures direct ATS apply URLs immediately at scrape time.
+Uses the Chrome extension to scrape LinkedIn job search results. Claude controls the browser you're already logged into — no API key needed. LinkedIn job IDs expire quickly, so the agent captures direct ATS apply URLs at scrape time.
 
 ### Google Jobs (SerpAPI)
-Optional. Returns the broadest results and often includes salary data. Uses ~9 API calls per run (4 queries × 3 cities). SerpAPI's free tier includes 100 searches/month — roughly 11 daily runs.
+Optional fourth source. Returns broad results and often includes salary data. Sign up at [serpapi.com](https://serpapi.com) — free tier includes 100 searches/month. Add `SERPAPI_KEY` to `.env` to enable.
 
 ---
 
