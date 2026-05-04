@@ -10,10 +10,13 @@ src/candidate-profile.js
 # Dependencies
 node_modules/
 
-# SQLite database (local state — no need to version-control)
+# SQLite databases (local state — no need to version-control)
 jobs.db
 jobs.db-wal
 jobs.db-shm
+pipeline.db
+pipeline.db-wal
+pipeline.db-shm
 
 # Generated output
 output/
