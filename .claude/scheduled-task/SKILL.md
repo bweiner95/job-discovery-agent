@@ -24,6 +24,11 @@ cd "<YOUR_PROJECT_PATH>" && node src/index.js --run-now
 
 ### Step 2 — LinkedIn (Chrome MCP)
 
+**IMPORTANT: Chrome MCP may not be available in unattended/routine runs. Before attempting, call `mcp__Claude_in_Chrome__list_connected_browsers` to check if Chrome is connected.**
+
+- If Chrome **is connected**: proceed with scraping all 3 cities below.
+- If Chrome **is not connected or returns any error**: skip this step entirely, set LinkedIn new jobs = 0 in the briefing, and continue to Step 3.
+
 Scrape each search URL, extract job cards, enrich with external apply URLs, store results.
 
 #### New York
