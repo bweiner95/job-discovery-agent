@@ -27,6 +27,7 @@ import { getAllApplications } from '../src/pipeline/db.js';
 const STATUS_ORDER = [
   'offer',
   'interview_scheduled',
+  'take_home_submitted',
   'interview_follow_up',
   'recruiter_outreach',
   'application_viewed',
