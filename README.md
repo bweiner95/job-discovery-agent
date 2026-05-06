@@ -9,8 +9,8 @@ Built to run inside [Claude Code](https://claude.ai/code) with the Chrome extens
 ## What It Does
 
 1. **Scrapes four sources** every day:
-   - **Greenhouse** boards for ~70 consumer/tech companies (no API key needed)
-   - **Lever** boards for ~35 consumer/tech companies (no API key needed)
+   - **Greenhouse** boards for ~70 companies across your target industries (no API key needed)
+   - **Lever** boards for ~35 companies across your target industries (no API key needed)
    - **LinkedIn** via Chrome extension — searches your target cities and titles
    - **Google Jobs** via SerpAPI (optional — broader coverage, includes salary data)
 
@@ -56,10 +56,10 @@ The wizard will ask for:
 - 🎯 **Target titles** — every variant you'd consider (titles vary a lot across companies)
 - 📍 **Cities** — up to 3 cities; LinkedIn searches and location filters update automatically
 - 💰 **Salary floor** — jobs listed below this get scored down
-- 🏢 **Industries** — what kinds of companies you're targeting
+- 🏢 **Industries** — what kinds of companies you're targeting (e.g. consumer tech, fintech, healthcare, DTC). Claude uses this to suggest which companies to add to the Greenhouse and Lever scraper lists.
 - 🚫 **What to avoid** — industries, roles, or company types to filter out
 
-At the end, Claude writes `src/candidate-profile.js`, updates all scrapers, and gives you a checklist of what's next.
+At the end, Claude writes `src/candidate-profile.js`, updates the Greenhouse and Lever company lists for your target industries, updates LinkedIn search URLs and location filters, and gives you a checklist of what's next.
 
 ### 4. Install the /job-hunt skill
 
@@ -199,7 +199,7 @@ job-discovery-agent/
 ## Data Sources
 
 ### Greenhouse & Lever
-Both expose public JSON APIs — no authentication needed. The agent queries curated lists of companies tuned for consumer tech, DTC, fintech, health/wellness, and marketplace roles. Easily extensible to any company using either ATS.
+Both expose public JSON APIs — no authentication needed. The agent queries curated lists of companies across a range of industries — the defaults skew toward the industries in the example profile, but the lists are fully customizable. Add any company that uses Greenhouse or Lever by appending their slug (see **Customization** above). The setup wizard also prompts you to specify your target industries, which Claude uses when suggesting companies to add.
 
 ### LinkedIn
 Uses the Chrome extension to scrape LinkedIn job search results. Claude controls the browser you're already logged into — no API key needed. LinkedIn job IDs expire quickly, so the agent captures direct ATS apply URLs at scrape time.
