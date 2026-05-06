@@ -10,7 +10,7 @@ Runs the full daily job search and application tracking pipeline.
 - **Candidate:** <CANDIDATE_NAME> — <TARGET_ROLES_AND_INDUSTRIES>
 - **Jobs DB:** `<YOUR_PROJECT_PATH>/jobs.db`
 - **Pipeline DB:** `<YOUR_PROJECT_PATH>/pipeline.db`
-- **Dashboard:** `http://localhost:3033`
+- **Dashboard:** `http://localhost:3033` (always running via pm2)
 
 ---
 
@@ -94,11 +94,32 @@ EOF
 Call `mcp__gmail__search_emails` with query `from:me` and maxResults 1 as a health check.
 
 - If it **succeeds**: proceed to the full Gmail search below.
-- If it **fails with any auth error** (invalid_grant, invalid_request, unauthorized, etc.):
-  1. Use `mcp__Claude_in_Chrome__navigate` to open `https://claude.ai/settings/connections` in Chrome so the user can re-authenticate Google.
-  2. Also run: `open -a "Claude"` to bring the Claude app to focus.
-  3. Skip the Gmail steps and note the auth failure in the final briefing.
-  4. Continue with Step 8 (dashboard refresh) and Step 9 (briefing without pipeline data).
+- If it **fails with any auth error** (`invalid_grant`, `No access, refresh token`, `unauthorized`, etc.):
+
+  **Auto-reauth sequence** (run these commands):
+
+  ```bash
+  # 1. Delete the stale token
+  rm -f ~/.gmail-mcp/credentials.json
+
+  # 2. Run the auth script — opens a browser OAuth window for the user to authorize
+  GMAIL_MCP_JS=$(find ~/.npm/_npx -path "*server-gmail-autoauth-mcp/dist/index.js" 2>/dev/null | head -1)
+  node "$GMAIL_MCP_JS" auth &
+  AUTH_PID=$!
+  sleep 30
+
+  # 3. Check if credentials were written
+  ls ~/.gmail-mcp/credentials.json 2>/dev/null && echo "AUTH_OK" || echo "AUTH_PENDING"
+  ```
+
+  - If `AUTH_OK`: kill the background process (`kill $AUTH_PID 2>/dev/null`), then **retry the Gmail health check** (`from:me`). If it passes, proceed with the full search below.
+  - If `AUTH_PENDING` (unattended run — no one clicked authorize in the browser):
+    1. Run: `open "https://claude.ai/settings/connections"` to alert the user
+    2. Run: `open -a "Claude"` to bring Claude to focus
+    3. Skip the Gmail steps and note the auth failure in the final briefing
+    4. Continue with Step 7 (dashboard refresh) and Step 8 (briefing without pipeline data)
+
+  **Note:** `mcp__Claude_in_Chrome__navigate` cannot open `claude.ai` or `mail.google.com` — those domains are blocked. Use `open` (Bash) instead.
 
 If auth is healthy, run the full search using `mcp__gmail__search_emails` with `sinceDate` from Step 4 (format `after:YYYY/MM/DD`):
 
@@ -115,6 +136,31 @@ cd "<YOUR_PROJECT_PATH>"
 node scripts/process-emails.js << 'EMAILEOF'
 [PASTE JSON ARRAY HERE]
 EMAILEOF
+```
+
+**After running process-emails.js, review the output `events` array for misidentified company names.** The classifier sometimes extracts the company name from the sender's email domain instead of the email content — e.g., `myworkday.com` → `"Myworkday"` instead of the actual company (Dyson, PwC, etc.), or `makenotion.com` → `"Makenotion"` instead of `"Notion"`.
+
+For any misidentified entries, fix them directly in the DB:
+```bash
+cd "<YOUR_PROJECT_PATH>"
+node --input-type=module << 'EOF'
+import { DatabaseSync } from 'node:sqlite';
+const db = new DatabaseSync('pipeline.db');
+// Example fixes — adjust based on actual output:
+// db.prepare("UPDATE applications SET company='Dyson', role='Chief of Staff' WHERE gmail_thread_id=?").run('THREAD_ID');
+// db.prepare("UPDATE applications SET company='Notion', current_status='applied' WHERE company='Makenotion'").run();
+db.close();
+EOF
+```
+
+Also check for **skipped calendar invites and Google Calendar interview notifications** — the classifier may skip these with `unknown` confidence. Add them manually if needed:
+```bash
+node --input-type=module << 'EOF'
+import { DatabaseSync } from 'node:sqlite';
+const db = new DatabaseSync('<YOUR_PROJECT_PATH>/pipeline.db');
+// db.prepare("INSERT INTO applications (gmail_thread_id, company, role, current_status, last_activity_date) VALUES (?,?,?,?,?)").run('THREAD_ID', 'Company', 'Role', 'interview_scheduled', 'YYYY-MM-DD');
+db.close();
+EOF
 ```
 
 ### Step 7 — Pipeline summary
@@ -170,7 +216,7 @@ Deliver a combined daily summary:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-If Gmail auth failed, include a clear warning at the top of the briefing:
-⚠️ Gmail auth expired — pipeline data not updated. Reconnect Google at: claude.ai/settings/connections
+If Gmail auth failed and the auto-reauth did not complete, include at the top of the briefing:
+⚠️ Gmail auth expired — pipeline data not updated. Open Claude → Settings → Connections to reconnect, or run `claude login` in Terminal.
 
 Call out any new interviews, offers, take-home assignments, or top-scored roles (8+).
