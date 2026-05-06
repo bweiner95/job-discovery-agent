@@ -650,7 +650,7 @@ function markNotFit(id) {
   const card = document.querySelector('[data-id="' + id + '"]');
   const title = card?.querySelector('.card-title')?.textContent || '';
   const company = card?.querySelector('.card-company')?.textContent || '';
-  document.getElementById('nf-job-label').textContent = (title && company) ? `${title} — ${company}` : '';
+  document.getElementById('nf-job-label').textContent = (title && company) ? (title + ' — ' + company) : '';
   document.getElementById('nf-reason').value = '';
   document.getElementById('nf-overlay').classList.add('open');
   setTimeout(() => document.getElementById('nf-reason').focus(), 50);
