@@ -134,7 +134,7 @@ function fmtDate(d) {
 }
 
 function sourceLabel(source) {
-  const map = { greenhouse: 'Greenhouse', lever: 'Lever', linkedin: 'LinkedIn', serpapi: 'Google' };
+  const map = { greenhouse: 'Greenhouse', lever: 'Lever', linkedin: 'LinkedIn', serpapi: 'Google', ashby: 'Ashby' };
   return map[source] || source;
 }
 
@@ -147,7 +147,7 @@ function applyUrl(job) {
 }
 
 function viewButtonLabel(source) {
-  const map = { linkedin: 'View on LinkedIn', greenhouse: 'View on Greenhouse', lever: 'View on Lever', serpapi: 'View Job' };
+  const map = { linkedin: 'View on LinkedIn', greenhouse: 'View on Greenhouse', lever: 'View on Lever', serpapi: 'View Job', ashby: 'View on Ashby' };
   return map[source] || 'View Job';
 }
 
@@ -190,6 +190,7 @@ function renderPage(jobs, notFitJobs, applications) {
   const countLever      = jobs.filter(j => j.source === 'lever').length;
   const countLinkedIn   = jobs.filter(j => j.source === 'linkedin').length;
   const countGreenhouse = jobs.filter(j => j.source === 'greenhouse').length;
+  const countAshby      = jobs.filter(j => j.source === 'ashby').length;
 
   const lastUpdated = (() => {
     const dates = jobs.map(j => j.created_at).filter(Boolean).sort().reverse();
@@ -377,6 +378,7 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:
 .chip-linkedin{background:#EAF0F7;color:#1a5276}
 .chip-greenhouse{background:#E8F2ED;color:#2e6b35}
 .chip-lever{background:#FAF0E8;color:#8a4a1a}
+.chip-ashby{background:#F0E8F5;color:#5a3a8a}
 .card-snippet{font-size:11.5px;color:#6B6B6B;line-height:1.55;margin-bottom:10px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .card-footer{display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid #EFEAE4}
 .card-date{font-size:11px;color:#B5ADA5;font-style:italic}
@@ -495,6 +497,7 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:
       <button class="source-pill" onclick="filterSource('lever',this)">Lever ${countLever}</button>
       <button class="source-pill" onclick="filterSource('linkedin',this)">LinkedIn ${countLinkedIn}</button>
       <button class="source-pill" onclick="filterSource('greenhouse',this)">Greenhouse ${countGreenhouse}</button>
+      <button class="source-pill" onclick="filterSource('ashby',this)">Ashby ${countAshby}</button>
     </div>
   </div>
 </div>

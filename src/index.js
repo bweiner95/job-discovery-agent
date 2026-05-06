@@ -5,6 +5,7 @@ import { fetchSerpApiJobs }    from './scrapers/serpapi.js';
 import { fetchLinkedInJobs }   from './scrapers/linkedin.js';
 import { fetchGreenhouseJobs } from './scrapers/greenhouse.js';
 import { fetchLeverJobs }      from './scrapers/lever.js';
+import { fetchAshbyJobs }      from './scrapers/ashby.js';
 import { scoreJobs }           from './scorer.js';
 import { sendDigest }          from './email.js';
 import {
@@ -28,11 +29,12 @@ async function runAgent() {
 
   // ── 1. Fetch from all sources concurrently ─────────────────────────────────────────
   console.log('\nFetching jobs from all sources…');
-  const [serpResult, linkedinResult, ghResult, leverResult] = await Promise.allSettled([
+  const [serpResult, linkedinResult, ghResult, leverResult, ashbyResult] = await Promise.allSettled([
     fetchSerpApiJobs(firstRun),
     fetchLinkedInJobs(firstRun),
     fetchGreenhouseJobs(firstRun),
     fetchLeverJobs(firstRun),
+    fetchAshbyJobs(firstRun),
   ]);
 
   function unwrap(result, name) {
@@ -46,6 +48,7 @@ async function runAgent() {
     ...unwrap(linkedinResult, 'LinkedIn'),
     ...unwrap(ghResult,      'Greenhouse'),
     ...unwrap(leverResult,   'Lever'),
+    ...unwrap(ashbyResult,   'Ashby'),
   ];
 
   console.log(`\nTotal fetched: ${allJobs.length} jobs across all sources`);
