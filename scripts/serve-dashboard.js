@@ -52,7 +52,7 @@ function getJobs() {
   if (!db) return [];
   try {
     const rows = db.prepare(`
-      SELECT * FROM jobs WHERE (status IS NULL OR status IN ('active', 'applied'))
+      SELECT * FROM jobs WHERE (status IS NULL OR status = 'active')
       ORDER BY score DESC NULLS LAST, created_at DESC
     `).all();
     db.close();
@@ -65,6 +65,16 @@ function getNotFitJobs() {
   if (!db) return [];
   try {
     const rows = db.prepare(`SELECT * FROM jobs WHERE status = 'not_fit' ORDER BY created_at DESC`).all();
+    db.close();
+    return rows;
+  } catch { return []; }
+}
+
+function getAppliedJobs() {
+  const db = openJobsDb();
+  if (!db) return [];
+  try {
+    const rows = db.prepare(`SELECT * FROM jobs WHERE status = 'applied' ORDER BY score DESC NULLS LAST, created_at DESC`).all();
     db.close();
     return rows;
   } catch { return []; }
@@ -181,7 +191,7 @@ function getCandidateFirstName() {
 }
 const CANDIDATE_FIRST_NAME = getCandidateFirstName();
 
-function renderPage(jobs, notFitJobs, applications) {
+function renderPage(jobs, notFitJobs, appliedJobs, applications) {
   const total    = jobs.length;
   const scores   = jobs.map(j => j.score).filter(s => s != null);
   const avgScore = scores.length ? (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1) : '—';
@@ -259,6 +269,7 @@ function renderPage(jobs, notFitJobs, applications) {
       ${job.location ? `<span class="chip chip-loc">${esc(job.location)}</span>` : ''}
       <span class="chip chip-src chip-${esc(job.source || '')}">${sourceLabel(job.source || '')}</span>
     </div>
+    ${job.not_fit_reason ? `<div class="card-snippet" style="font-style:italic">"${esc(job.not_fit_reason)}"</div>` : ''}
     <div class="card-footer">
       <span class="card-date">${fmtDate(job.created_at)}</span>
       <div class="card-actions">
@@ -267,6 +278,33 @@ function renderPage(jobs, notFitJobs, applications) {
     </div>
   </div>
 </div>`).join('');
+
+  // Applied cards
+  const appliedCards = appliedJobs.length === 0
+    ? '<div class="empty-state">No jobs marked as Applied yet.</div>'
+    : appliedJobs.map(job => {
+      const url = applyUrl(job);
+      const hasUrl = url && url !== '#';
+      return `
+<div class="job-card is-applied" data-id="${job.id}">
+  ${job.score != null ? `<div class="score-badge" style="background:${scoreBg(job.score)};color:${scoreColor(job.score)}">${job.score}<span>/10</span></div>` : `<div class="score-badge" style="background:#EFEAE4;color:#9E9289">—</div>`}
+  <div class="card-body">
+    <div class="card-title">${esc(job.title || '')}</div>
+    <div class="card-company">${esc(job.company || '')}</div>
+    <div class="card-chips">
+      ${job.location ? `<span class="chip chip-loc">${esc(job.location)}</span>` : ''}
+      <span class="chip chip-src chip-${esc(job.source || '')}">${sourceLabel(job.source || '')}</span>
+      ${job.salary ? `<span class="chip chip-salary">${esc(job.salary)}</span>` : ''}
+    </div>
+    <div class="card-footer">
+      <span class="card-date">${fmtDate(job.created_at)}</span>
+      <div class="card-actions">
+        <button class="btn-applied" onclick="restoreJob(${job.id})">↩ Unapply</button>
+        ${hasUrl ? `<a class="btn-view" href="${esc(url)}" target="_blank">${viewButtonLabel(job.source || '')} ↗</a>` : ''}
+      </div>
+    </div>
+  </div>`;
+    }).join('');
 
   // Pipeline sections (grouped by status)
   const pipelineSections = STATUS_ORDER.flatMap(status => {
@@ -506,6 +544,7 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:
 <div class="tabs">
   <div class="tab active" onclick="showTab('roles',this)">Open Roles <span class="tab-count">${total}</span></div>
   <div class="tab" onclick="showTab('pipeline',this)">Pipeline <span class="tab-count">${applications.length}</span></div>
+  <div class="tab" onclick="showTab('applied',this)">Applied <span class="tab-count">${appliedJobs.length}</span></div>
   <div class="tab" onclick="showTab('notfit',this)">Not a Fit <span class="tab-count">${notFitJobs.length}</span></div>
 </div>
 
@@ -558,6 +597,11 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:
       ? '<div class="empty-state">No pipeline data. Run /job-hunt to scan Gmail for application emails.</div>'
       : pipelineSections}
   </div>
+</div>
+
+<!-- Applied -->
+<div id="tab-applied" class="tab-panel">
+  <div class="grid">${appliedCards}</div>
 </div>
 
 <!-- Not a Fit -->
@@ -691,15 +735,29 @@ function restoreJob(id) {
 }
 
 function toggleApplied(btn, id) {
-  const wasApplied = btn.classList.contains('active');
-  const action = wasApplied ? 'unapplied' : 'applied';
-  fetch('/api/jobs/' + id + '/' + action, { method: 'POST' }).then(r => {
+  fetch('/api/jobs/' + id + '/applied', { method: 'POST' }).then(r => {
     if (!r.ok) return;
-    btn.classList.toggle('active', !wasApplied);
-    btn.textContent = wasApplied ? '+ Applied' : '✓ Applied';
     const card = btn.closest('.job-card');
-    if (card) card.classList.toggle('is-applied', !wasApplied);
+    if (card) {
+      card.style.transition = 'opacity 220ms, transform 220ms';
+      card.style.opacity = '0';
+      card.style.transform = 'translateY(-6px)';
+      setTimeout(() => { card.remove(); applyFilters(); updateTabCounts(); }, 220);
+    }
   });
+}
+
+function updateTabCounts() {
+  // Decrement Open Roles count, increment Applied count
+  const tabs = document.querySelectorAll('.tabs .tab');
+  if (tabs[0]) {
+    const c = tabs[0].querySelector('.tab-count');
+    if (c) c.textContent = Math.max(0, Number(c.textContent) - 1);
+  }
+  if (tabs[2]) {
+    const c = tabs[2].querySelector('.tab-count');
+    if (c) c.textContent = Number(c.textContent) + 1;
+  }
 }
 
 // ── Log drawer ────────────────────────────────────────────────────────────────
@@ -908,8 +966,9 @@ const server = http.createServer((req, res) => {
   if (req.method === 'GET' && (path === '/' || path === '/index.html')) {
     const jobs        = getJobs();
     const notFitJobs  = getNotFitJobs();
+    const appliedJobs = getAppliedJobs();
     const applications = getApplications();
-    const html = renderPage(jobs, notFitJobs, applications);
+    const html = renderPage(jobs, notFitJobs, appliedJobs, applications);
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(html);
     return;
