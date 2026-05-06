@@ -27,9 +27,14 @@ cd "<YOUR_PROJECT_PATH>" && node src/index.js --run-now
 **IMPORTANT: Chrome MCP may not be available in unattended/routine runs. Before attempting, call `mcp__Claude_in_Chrome__list_connected_browsers` to check if Chrome is connected.**
 
 - If Chrome **is connected**: proceed with scraping all 3 cities below.
-- If Chrome **is not connected or returns any error**: skip this step entirely, set LinkedIn new jobs = 0 in the briefing, and continue to Step 3.
+- If Chrome **is not connected**: skip this step, set LinkedIn new jobs = 0 in the briefing, continue to Step 3.
+- If Chrome **is connected but errors occur** (disconnect, batch failure, JS timeout): do NOT skip — fall back to the simple text extraction method below.
 
-Scrape each search URL, extract job cards, enrich with external apply URLs, store results.
+**Primary method**: Use `mcp__Claude_in_Chrome__javascript_tool` with the full JS extraction script after navigating to each URL.
+
+**Fallback (if JS/batch fails)**: Use `mcp__Claude_in_Chrome__navigate` then `mcp__Claude_in_Chrome__get_page_text` to get the raw page text, then extract job titles/companies/locations from the text using pattern matching. This won't capture job IDs or external URLs but will capture the job listings. Store with `source: 'linkedin'` and `job_id` set to a hash or sequential placeholder.
+
+Scrape each search URL, extract job cards, enrich with external apply URLs where possible, store results.
 
 #### New York
 ```

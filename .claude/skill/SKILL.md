@@ -32,6 +32,8 @@ Note the output: total fetched, new vs. duplicates.
 
 ### Step 2 — Scrape LinkedIn via Chrome (3 cities)
 
+**If Chrome MCP errors occur** (disconnect, batch failure, JS timeout): do NOT skip — fall back to `navigate` + `get_page_text` and extract job titles/companies/locations from the page text. Less precise but keeps LinkedIn in the run.
+
 For each search below, navigate to the URL, scroll for more results, extract job cards, and store.
 
 #### 2a. New York
