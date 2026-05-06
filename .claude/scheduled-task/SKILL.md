@@ -68,7 +68,7 @@ cd "<YOUR_PROJECT_PATH>"
 node --input-type=module << 'EOF'
 import { DatabaseSync } from 'node:sqlite';
 const db = new DatabaseSync('jobs.db');
-const jobs = db.prepare("SELECT id, title, company, location, description, salary FROM jobs WHERE score IS NULL").all();
+const jobs = db.prepare("SELECT id, title, company, location, description, salary FROM jobs WHERE score IS NULL AND (status IS NULL OR status NOT IN ('not_fit', 'applied'))").all();
 console.log(JSON.stringify(jobs));
 db.close();
 EOF
@@ -191,6 +191,18 @@ cd "<YOUR_PROJECT_PATH>" && pm2 start scripts/serve-dashboard.js --name job-dash
 ```
 
 ## Step 9 — Daily briefing
+
+When querying new roles for the briefing, only include jobs with `status = 'active'` or `status IS NULL` — exclude `status = 'applied'` and `status = 'not_fit'`. Example:
+```bash
+cd "/Users/benweiner/Documents/Claude Code/job-discovery-agent"
+node --input-type=module << 'EOF'
+import { DatabaseSync } from 'node:sqlite';
+const db = new DatabaseSync('jobs.db');
+const newJobs = db.prepare("SELECT title, company, location, score FROM jobs WHERE score >= 7 AND (status IS NULL OR status = 'active') ORDER BY score DESC, created_at DESC LIMIT 15").all();
+console.log(JSON.stringify(newJobs));
+db.close();
+EOF
+```
 
 Deliver a combined daily summary:
 

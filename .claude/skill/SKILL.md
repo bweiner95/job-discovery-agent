@@ -156,7 +156,7 @@ cd "<YOUR_PROJECT_PATH>"
 node --input-type=module << 'EOF'
 import { DatabaseSync } from 'node:sqlite';
 const db = new DatabaseSync('jobs.db');
-const jobs = db.prepare("SELECT id, title, company, location, description, salary FROM jobs WHERE score IS NULL").all();
+const jobs = db.prepare("SELECT id, title, company, location, description, salary FROM jobs WHERE score IS NULL AND (status IS NULL OR status NOT IN ('not_fit', 'applied'))").all();
 console.log(JSON.stringify(jobs));
 db.close();
 EOF
@@ -282,6 +282,13 @@ Run complete ✓  (timestamp)
   Cold (🥶 14+ days): N
 
   Dashboard → http://localhost:3033
+```
+
+When listing standout new roles, only include jobs where `status = 'active'` or `status IS NULL` — exclude `status = 'applied'` and `status = 'not_fit'`. Query:
+```sql
+SELECT title, company, location, score FROM jobs
+WHERE score >= 7 AND (status IS NULL OR status = 'active')
+ORDER BY score DESC, created_at DESC LIMIT 15
 ```
 
 Highlight any standout new roles (score 8+) and notable pipeline activity (new interviews, offers, take-home assignments).
