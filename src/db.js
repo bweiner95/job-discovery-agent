@@ -34,6 +34,7 @@ function initSchema(db) {
       score        INTEGER,
       score_reason TEXT,
       status       TEXT    DEFAULT 'active',
+      not_fit_reason TEXT,
       emailed      INTEGER DEFAULT 0,
       created_at   TEXT    DEFAULT (datetime('now')),
       UNIQUE(source, job_id)

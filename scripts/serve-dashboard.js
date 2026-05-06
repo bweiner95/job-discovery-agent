@@ -38,6 +38,7 @@ function openJobsDb() {
   try {
     const db = new DatabaseSync(JOBS_DB_PATH);
     try { db.exec(`ALTER TABLE jobs ADD COLUMN status TEXT DEFAULT 'active'`); } catch {}
+    try { db.exec(`ALTER TABLE jobs ADD COLUMN not_fit_reason TEXT`); } catch {}
     return db;
   } catch { return null; }
 }
@@ -79,11 +80,18 @@ function getApplications() {
   } catch { return []; }
 }
 
-function updateJobStatus(id, status) {
+function updateJobStatus(id, status, reason = null) {
   const db = openJobsDb();
   if (!db) return false;
   try {
-    db.prepare(`UPDATE jobs SET status = ? WHERE id = ?`).run(status, id);
+    if (status === 'not_fit' && reason) {
+      db.prepare(`UPDATE jobs SET status = ?, not_fit_reason = ? WHERE id = ?`).run(status, reason, id);
+    } else if (status !== 'not_fit') {
+      // Clear reason when restoring/applying
+      db.prepare(`UPDATE jobs SET status = ?, not_fit_reason = NULL WHERE id = ?`).run(status, id);
+    } else {
+      db.prepare(`UPDATE jobs SET status = ? WHERE id = ?`).run(status, id);
+    }
     db.close();
     return true;
   } catch { return false; }
@@ -422,9 +430,46 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:
 #log-progress-bar{height:100%;background:#6F8F80;width:0%;transition:width 600ms ease}
 #log-progress-bar.indeterminate{animation:progress-slide 1.4s infinite linear;width:30%}
 @keyframes progress-slide{0%{transform:translateX(-200%)}100%{transform:translateX(400%)}}
+
+/* ── Not-a-fit feedback modal ── */
+#nf-overlay{position:fixed;inset:0;background:rgba(28,26,24,.5);display:none;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(2px)}
+#nf-overlay.open{display:flex}
+#nf-modal{background:#fff;border-radius:14px;padding:24px;max-width:480px;width:90%;box-shadow:0 12px 48px rgba(0,0,0,.25);animation:nf-pop 180ms cubic-bezier(.4,0,.2,1)}
+@keyframes nf-pop{from{opacity:0;transform:scale(.95) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
+#nf-modal h3{font-family:'Playfair Display',Georgia,serif;font-size:20px;font-weight:500;color:#1C1C1C;margin-bottom:4px;letter-spacing:-0.2px}
+#nf-modal .nf-job{font-size:12px;color:#9E9289;margin-bottom:14px;font-style:italic}
+#nf-modal label{font-size:12px;font-weight:600;color:#4A4A4A;margin-bottom:6px;display:block;letter-spacing:0.02em}
+#nf-modal textarea{width:100%;padding:10px 12px;border:1.5px solid #C8C2BA;border-radius:8px;font-family:'Inter',sans-serif;font-size:13px;line-height:1.5;resize:vertical;min-height:80px;outline:none;color:#1C1C1C;background:#FAF8F5}
+#nf-modal textarea:focus{border-color:#6F8F80;box-shadow:0 0 0 3px rgba(111,143,128,.12);background:#fff}
+#nf-modal textarea::placeholder{color:#B5ADA5}
+#nf-modal .nf-hint{font-size:11px;color:#9E9289;margin-top:6px;font-style:italic}
+#nf-modal .nf-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+#nf-modal button{padding:8px 16px;border-radius:8px;font-family:'Inter',sans-serif;font-size:13px;font-weight:500;cursor:pointer;transition:all 150ms;border:1.5px solid transparent}
+#nf-modal .nf-cancel{background:transparent;border-color:#DDD8D1;color:#6B6B6B}
+#nf-modal .nf-cancel:hover{background:#EFEAE4;color:#1C1C1C}
+#nf-modal .nf-skip{background:transparent;border-color:#DDD8D1;color:#6B6B6B}
+#nf-modal .nf-skip:hover{background:#EFEAE4;color:#1C1C1C}
+#nf-modal .nf-save{background:#6F8F80;color:#fff;border-color:#6F8F80}
+#nf-modal .nf-save:hover{background:#5E7C6F;border-color:#5E7C6F}
 </style>
 </head>
 <body>
+
+<!-- Not-a-fit feedback modal -->
+<div id="nf-overlay" onclick="if(event.target===this)closeNfModal()">
+  <div id="nf-modal">
+    <h3>Why isn't this a fit?</h3>
+    <div class="nf-job" id="nf-job-label"></div>
+    <label for="nf-reason">Feedback (optional)</label>
+    <textarea id="nf-reason" placeholder="e.g. wrong industry, too junior, too operational, location not viable…"></textarea>
+    <div class="nf-hint">Your feedback is included in future scoring runs to refine which roles get suggested.</div>
+    <div class="nf-actions">
+      <button class="nf-cancel" onclick="closeNfModal()">Cancel</button>
+      <button class="nf-skip" onclick="submitNfModal(true)">Skip & Dismiss</button>
+      <button class="nf-save" onclick="submitNfModal(false)">Save & Dismiss</button>
+    </div>
+  </div>
+</div>
 
 <!-- Log drawer -->
 <div id="log-drawer">
@@ -598,12 +643,45 @@ function applyFilters() {
 }
 
 // ── Job actions ───────────────────────────────────────────────────────────────
+let _nfPendingId = null;
+
 function markNotFit(id) {
-  fetch('/api/jobs/' + id + '/notfit', { method: 'POST' }).then(() => {
+  _nfPendingId = id;
+  const card = document.querySelector('[data-id="' + id + '"]');
+  const title = card?.querySelector('.card-title')?.textContent || '';
+  const company = card?.querySelector('.card-company')?.textContent || '';
+  document.getElementById('nf-job-label').textContent = (title && company) ? `${title} — ${company}` : '';
+  document.getElementById('nf-reason').value = '';
+  document.getElementById('nf-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('nf-reason').focus(), 50);
+}
+
+function closeNfModal() {
+  document.getElementById('nf-overlay').classList.remove('open');
+  _nfPendingId = null;
+}
+
+function submitNfModal(skip) {
+  const id = _nfPendingId;
+  if (!id) return closeNfModal();
+  const reason = skip ? '' : document.getElementById('nf-reason').value.trim();
+  fetch('/api/jobs/' + id + '/notfit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  }).then(() => {
+    closeNfModal();
     const card = document.querySelector('[data-id="' + id + '"]');
     if (card) { card.style.transition = 'opacity 200ms'; card.style.opacity = '0'; setTimeout(() => { card.remove(); applyFilters(); }, 200); }
   });
 }
+
+// Escape key + Cmd/Ctrl-Enter to submit
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('nf-overlay').classList.contains('open')) return;
+  if (e.key === 'Escape') closeNfModal();
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submitNfModal(false);
+});
 
 function restoreJob(id) {
   fetch('/api/jobs/' + id + '/restore', { method: 'POST' }).then(() => location.reload());
@@ -732,9 +810,19 @@ const server = http.createServer((req, res) => {
   if (req.method === 'POST' && /^\/api\/jobs\/(\d+)\/(notfit|restore|applied|unapplied)$/.test(path)) {
     const [, id, action] = path.match(/^\/api\/jobs\/(\d+)\/(notfit|restore|applied|unapplied)$/);
     const statusMap = { notfit: 'not_fit', restore: 'active', applied: 'applied', unapplied: 'active' };
-    updateJobStatus(Number(id), statusMap[action]);
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ ok: true }));
+
+    // Read optional JSON body for not_fit reason
+    let body = '';
+    req.on('data', chunk => { body += chunk; if (body.length > 4000) req.destroy(); });
+    req.on('end', () => {
+      let reason = null;
+      if (body) {
+        try { reason = (JSON.parse(body).reason || '').toString().trim().slice(0, 1000) || null; } catch {}
+      }
+      updateJobStatus(Number(id), statusMap[action], reason);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+    });
     return;
   }
 

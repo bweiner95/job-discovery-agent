@@ -61,7 +61,20 @@ JOBSEOF
 
 ### Step 3 — Score new jobs
 
-Read `src/candidate-profile.js`. Query unscored jobs and score each 1–10 using CANDIDATE_PROFILE and SCORING_RUBRIC. Update DB with scores.
+Read `src/candidate-profile.js`. **Before scoring, query recent user feedback on jobs they marked "not a fit"** so you can incorporate it into your scoring decisions:
+
+```bash
+cd "/Users/benweiner/Documents/Claude Code/job-discovery-agent"
+node --input-type=module << 'EOF'
+import { DatabaseSync } from 'node:sqlite';
+const db = new DatabaseSync('jobs.db');
+const feedback = db.prepare("SELECT title, company, location, score, not_fit_reason FROM jobs WHERE status = 'not_fit' AND not_fit_reason IS NOT NULL AND not_fit_reason != '' ORDER BY id DESC LIMIT 30").all();
+console.log(JSON.stringify(feedback, null, 2));
+db.close();
+EOF
+```
+
+Then query unscored jobs and score each 1–10 using CANDIDATE_PROFILE, SCORING_RUBRIC, **and the user feedback above**. Use the feedback as additional context — if the user repeatedly rejects similar roles, score similar new roles lower; if a pattern is strong enough that the rubric should be permanently updated, surface that suggestion in the briefing (don't auto-edit the profile). Update DB with scores.
 
 ```bash
 cd "<YOUR_PROJECT_PATH>"

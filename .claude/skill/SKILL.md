@@ -150,7 +150,22 @@ JOBSEOF
 
 ### Step 3 — Score new jobs natively
 
-Read `src/candidate-profile.js`. Query unscored jobs:
+Read `src/candidate-profile.js`. **First, query recent user feedback on jobs they marked "not a fit"** so you can use it as context when scoring:
+
+```bash
+cd "<YOUR_PROJECT_PATH>"
+node --input-type=module << 'EOF'
+import { DatabaseSync } from 'node:sqlite';
+const db = new DatabaseSync('jobs.db');
+const feedback = db.prepare("SELECT title, company, location, score, not_fit_reason FROM jobs WHERE status = 'not_fit' AND not_fit_reason IS NOT NULL AND not_fit_reason != '' ORDER BY id DESC LIMIT 30").all();
+console.log(JSON.stringify(feedback, null, 2));
+db.close();
+EOF
+```
+
+Use this feedback as additional context — if the user repeatedly rejects similar roles, score similar new roles lower. If a strong pattern emerges, surface a rubric-update suggestion in the final summary (do NOT auto-edit the profile).
+
+Query unscored jobs:
 ```bash
 cd "<YOUR_PROJECT_PATH>"
 node --input-type=module << 'EOF'
