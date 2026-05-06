@@ -8,9 +8,10 @@ Built to run inside [Claude Code](https://claude.ai/code) with the Chrome extens
 
 ## What It Does
 
-1. **Scrapes four sources** every day:
+1. **Scrapes five sources** every day:
    - **Greenhouse** boards for ~70 companies across your target industries (no API key needed)
    - **Lever** boards for ~35 companies across your target industries (no API key needed)
+   - **Ashby** boards for ~30 companies — returns full job descriptions inline for richer scoring (no API key needed)
    - **LinkedIn** via Chrome extension — searches your target cities and titles
    - **Google Jobs** via SerpAPI (optional — broader coverage, includes salary data)
 
@@ -130,6 +131,14 @@ const COMPANIES = [
 ```
 Find a company's slug at `https://jobs.lever.co/{slug}`.
 
+**Ashby** — add slugs to `src/scrapers/ashby.js`:
+```js
+const COMPANIES = [
+  'whatnot', 'openai', 'replit', 'your-company-here',
+];
+```
+Find a company's slug at `https://jobs.ashbyhq.com/{slug}`.
+
 ### Change your search titles or cities
 
 Re-run the setup wizard in Claude Code:
@@ -170,6 +179,7 @@ job-discovery-agent/
 │   └── scrapers/
 │       ├── greenhouse.js            # Greenhouse public boards (~70 companies)
 │       ├── lever.js                 # Lever public postings (~35 companies)
+│       ├── ashby.js                 # Ashby public boards (~30 companies, full descriptions)
 │       ├── linkedin.js              # LinkedIn guest API
 │       └── serpapi.js               # Google Jobs via SerpAPI
 ├── scripts/
@@ -198,8 +208,10 @@ job-discovery-agent/
 
 ## Data Sources
 
-### Greenhouse & Lever
-Both expose public JSON APIs — no authentication needed. The agent queries curated lists of companies across a range of industries — the defaults skew toward the industries in the example profile, but the lists are fully customizable. Add any company that uses Greenhouse or Lever by appending their slug (see **Customization** above). The setup wizard also prompts you to specify your target industries, which Claude uses when suggesting companies to add.
+### Greenhouse, Lever & Ashby
+All three ATS providers expose public JSON APIs — no authentication needed. The agent queries curated lists of companies across a range of industries — the defaults skew toward the industries in the example profile, but the lists are fully customizable. Add any company that uses one of these ATSs by appending their slug (see **Customization** above). The setup wizard also prompts you to specify your target industries, which Claude uses when suggesting companies to add.
+
+Of the three, Ashby returns the richest data: full job descriptions come back inline, which gives Claude meaningfully better context when scoring. Greenhouse and Lever return titles, locations, and links; descriptions are fetched separately when needed.
 
 ### LinkedIn
 Uses the Chrome extension to scrape LinkedIn job search results. Claude controls the browser you're already logged into — no API key needed. LinkedIn job IDs expire quickly, so the agent captures direct ATS apply URLs at scrape time.
