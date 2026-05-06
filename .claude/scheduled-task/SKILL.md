@@ -16,11 +16,13 @@ Runs the full daily job search and application tracking pipeline.
 
 ## Part 1 — Job Discovery
 
-### Step 1 — Greenhouse + Lever
+### Step 1 — Greenhouse + Lever + Ashby
 
 ```bash
 cd "<YOUR_PROJECT_PATH>" && node src/index.js --run-now
 ```
+
+This single command runs all three ATS scrapers (Greenhouse, Lever, Ashby) in parallel along with the LinkedIn guest-API scraper and SerpAPI (if configured). The output reports per-source counts. Ashby returns full job descriptions inline, so jobs from Ashby will have richer context for scoring than Greenhouse/Lever ones.
 
 ### Step 2 — LinkedIn (Chrome MCP)
 
@@ -238,7 +240,7 @@ Deliver a combined daily summary:
   🥶 Cold (14+ days no activity): N
 
 📈 RUN STATS
-  Greenhouse/Lever: N new jobs
+  Greenhouse/Lever/Ashby: N new jobs (G:N · L:N · A:N)
   LinkedIn: N new jobs
   Emails scanned: N | New apps: N | Updates: N
 

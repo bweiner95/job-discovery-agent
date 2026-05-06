@@ -15,20 +15,22 @@ Runs the complete job search and application tracking pipeline at
 `<YOUR_PROJECT_PATH>`.
 
 **Two pipelines run together:**
-1. **Job Discovery** — scrapes Greenhouse, Lever, LinkedIn, and optionally Google Jobs
+1. **Job Discovery** — scrapes Greenhouse, Lever, Ashby, LinkedIn, and optionally Google Jobs
 2. **Application Pipeline** — scans Gmail for job emails and updates application status
 
 ---
 
 ## Part 1 — Job Discovery
 
-### Step 1 — Run Greenhouse + Lever scrapers
+### Step 1 — Run Greenhouse + Lever + Ashby scrapers
 
 ```bash
 cd "<YOUR_PROJECT_PATH>" && node src/index.js --run-now
 ```
 
-Note the output: total fetched, new vs. duplicates.
+This runs all three ATS scrapers (Greenhouse, Lever, Ashby) plus the LinkedIn guest-API scraper and SerpAPI (if configured). Ashby returns full job descriptions inline, so its jobs come into the DB with richer context.
+
+Note the output: per-source counts and total fetched, new vs. duplicates.
 
 ### Step 2 — Scrape LinkedIn via Chrome (3 cities)
 
@@ -285,7 +287,7 @@ Dashboard: **http://localhost:3033**
 Run complete ✓  (timestamp)
 
   JOB DISCOVERY
-  Greenhouse/Lever:  X new · Y duplicates
+  Greenhouse/Lever/Ashby:  X new · Y duplicates (G:n · L:n · A:n)
   LinkedIn (NY/SF/LA): X new jobs
   Total in database:  N jobs
 
