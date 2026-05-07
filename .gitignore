@@ -21,6 +21,9 @@ pipeline.db-shm
 # Generated output
 output/
 
+# Local state for the weekly upstream-update check
+.update-check
+
 # OS / editor
 .DS_Store
 *.swp

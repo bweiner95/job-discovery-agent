@@ -83,6 +83,18 @@ pipeline.db                 application pipeline (git-ignored, auto-created)
 Edit `src/candidate-profile.js` — change `CANDIDATE_PROFILE` (your background) and/or
 `SCORING_RUBRIC` (how Claude should evaluate fit). Changes take effect on the next run.
 
+## Upstream update check
+
+Every agent run quietly checks GitHub for newer commits to the upstream repo
+(`bweiner95/job-discovery-agent`). The check is throttled to once per 7 days
+and stores its state in `.update-check` (git-ignored). If updates exist, the
+agent prints a one-time banner with the recent commits and a `git pull` hint
+— it never auto-pulls. Manual re-check: `npm run check-updates -- --force`.
+
+The check is implemented in `scripts/check-updates.js` and called as the
+first step of `runAgent()` in `src/index.js`. Failures (offline, GitHub
+rate-limit, etc.) are tolerated silently.
+
 ## Adding companies to scrape
 
 - **Greenhouse**: append slugs to `COMPANIES` in `src/scrapers/greenhouse.js`

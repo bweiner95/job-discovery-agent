@@ -22,6 +22,17 @@ async function runAgent() {
   const startedAt = new Date();
   console.log(`\n[${startedAt.toISOString()}] ── Job Discovery Agent starting ──`);
 
+  // Lightweight check for upstream updates (throttled to weekly internally).
+  // Runs as a child process so a hang or error in the check can't stall the
+  // agent. Output, if any, is mixed into the run log.
+  try {
+    const { execSync } = await import('node:child_process');
+    execSync('node scripts/check-updates.js --quiet', {
+      stdio: ['ignore', 'inherit', 'ignore'],
+      timeout: 10_000,
+    });
+  } catch { /* never block the agent on update-check failures */ }
+
   const firstRun = isFirstRun();
   if (firstRun) {
     console.log('First run detected — fetching all available jobs (no 24 h filter)');

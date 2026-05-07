@@ -217,6 +217,29 @@ job-discovery-agent/
 
 ---
 
+## Staying up to date
+
+The agent quietly checks GitHub for new commits on every run, throttled to once per week. If updates are available, you'll see a notice like this in the run log:
+
+```
+━━━ 📦 Update Available ━━━
+Your local copy is behind bweiner95/job-discovery-agent by 3 commit(s).
+
+Recent changes upstream:
+  • c3f5d0f  Bring CLAUDE.md and README in sync with current feature set
+  • 18c7669  Close LinkedIn tab after Step 2 finishes
+  • 279345e  Detect post-interview thank-you notes from user's sent emails
+
+To update:  cd into the repo and run `git pull`
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+Updates are **never** pulled automatically — review and run `git pull` yourself. To check immediately, run `npm run check-updates -- --force`.
+
+The check stores its state in `.update-check` (git-ignored) and silently skips on offline / rate-limit failures.
+
+---
+
 ## Privacy
 
 - `candidate-profile.js` — git-ignored, your personal data stays on your machine
