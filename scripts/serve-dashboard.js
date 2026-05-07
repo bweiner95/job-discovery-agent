@@ -105,7 +105,56 @@ function getApplications() {
   } catch { return []; }
 }
 
-function computeAnalytics(applications) {
+// Group multiple pipeline rows that represent the same logical application
+// (same company + role, often arriving via different Gmail threads — e.g., a
+// recruiter email + a calendar invite + a follow-up reply all for the same
+// interview process). Keeps the row with the most-advanced status; if all are
+// terminal, prefers offer > rejection.
+function dedupeApplications(applications) {
+  const STAGE_PRIORITY = {
+    offer: 8,
+    interview_follow_up: 7,
+    take_home_submitted: 6,
+    interview_scheduled: 5,
+    recruiter_outreach: 4,
+    application_viewed: 3,
+    applied: 2,
+    rejection: 1, // terminal but lower than active stages so e.g. an interview-then-rejection still counts under interview
+    unknown: 0,
+  };
+  function norm(s) {
+    return (s ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+  const groups = new Map();
+  for (const app of applications) {
+    const company = norm(app.company);
+    const role = norm(app.role);
+    if (!company) continue;
+    // Group key: company + role. If role is empty, group by company only
+    // (company-level dupes from generic acknowledgements).
+    const key = role ? `${company}::${role}` : `${company}::`;
+    const existing = groups.get(key);
+    if (!existing) {
+      groups.set(key, app);
+      continue;
+    }
+    const existingPriority = STAGE_PRIORITY[existing.current_status] ?? 0;
+    const newPriority = STAGE_PRIORITY[app.current_status] ?? 0;
+    if (newPriority > existingPriority) {
+      groups.set(key, app);
+    } else if (newPriority === existingPriority) {
+      // Tie: keep the one with the more recent activity
+      const ed = new Date(existing.last_activity_date || 0);
+      const nd = new Date(app.last_activity_date || 0);
+      if (nd > ed) groups.set(key, app);
+    }
+  }
+  return Array.from(groups.values());
+}
+
+function computeAnalytics(rawApplications) {
+  // Dedupe before computing so same-role multi-row noise doesn't inflate counts
+  const applications = dedupeApplications(rawApplications);
   const total = applications.length;
   if (total === 0) return null;
 
@@ -1364,8 +1413,12 @@ const server = http.createServer((req, res) => {
     const jobs        = getJobs();
     const notFitJobs  = getNotFitJobs();
     const appliedJobs = getAppliedJobs();
-    const applications = getApplications();
-    const analytics  = computeAnalytics(applications);
+    const rawApplications = getApplications();
+    // Dedupe by (company, role) — keep the most-advanced status. Same logic
+    // used for analytics so the Pipeline tab counts/sections match the
+    // Analytics tab numbers.
+    const applications = dedupeApplications(rawApplications);
+    const analytics  = computeAnalytics(rawApplications);
     const html = renderPage(jobs, notFitJobs, appliedJobs, applications, analytics);
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(html);
