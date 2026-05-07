@@ -61,6 +61,8 @@ node scripts/store-linkedin-jobs.js << 'JOBSEOF'
 JOBSEOF
 ```
 
+**After all 3 cities are scraped and stored**, close the LinkedIn tab to keep the user's browser tidy. Call `mcp__Claude_in_Chrome__tabs_close_mcp` with the `tabId` from the earlier `tabs_context_mcp` call. If the close fails (tab already closed by user, etc.), continue silently.
+
 ### Step 3 — Score new jobs
 
 Read `src/candidate-profile.js`. **Before scoring, query recent user feedback on jobs they marked "not a fit"** so you can incorporate it into your scoring decisions:
