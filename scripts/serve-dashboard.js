@@ -125,28 +125,73 @@ function dedupeApplications(applications) {
   function norm(s) {
     return (s ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
   }
-  const groups = new Map();
+  // Generic "round name" patterns that aren't real role titles — these often
+  // come from email subjects like "Builders interview" or "Phone screen with
+  // Faire" and should NOT be treated as a separate role. Group these by
+  // company alone so they merge with the actual application.
+  const ROUND_NAME_PATTERN = /^(builders|phone\s*screen|recruiter\s*screen|technical\s*screen|onsite|on\s*site|virtual|in\s*person|final\s*round|hiring\s*manager|behavioral|culture\s*fit)?\s*(interview|screen|round|panel|chat|conversation|call)?$/i;
+  function isRoundName(role) {
+    if (!role) return true;
+    if (role.length < 4) return true;
+    return ROUND_NAME_PATTERN.test(role.trim());
+  }
+
+  // Two-pass dedupe so that round-name entries ("Builders interview",
+  // "Phone screen") always collapse into the canonical role-named entry
+  // for the same company, even if their group keys would otherwise differ.
+
+  const groups = new Map(); // key → app
+  const realRoleAppsByCompany = new Map(); // company → first app with a real role
+
+  function pickWinner(a, b) {
+    const ap = STAGE_PRIORITY[a.current_status] ?? 0;
+    const bp = STAGE_PRIORITY[b.current_status] ?? 0;
+    if (bp > ap) return b;
+    if (bp < ap) return a;
+    const ad = new Date(a.last_activity_date || 0);
+    const bd = new Date(b.last_activity_date || 0);
+    return bd > ad ? b : a;
+  }
+
   for (const app of applications) {
     const company = norm(app.company);
     const role = norm(app.role);
     if (!company) continue;
-    // Group key: company + role. If role is empty, group by company only
-    // (company-level dupes from generic acknowledgements).
-    const key = role ? `${company}::${role}` : `${company}::`;
-    const existing = groups.get(key);
-    if (!existing) {
-      groups.set(key, app);
-      continue;
-    }
-    const existingPriority = STAGE_PRIORITY[existing.current_status] ?? 0;
-    const newPriority = STAGE_PRIORITY[app.current_status] ?? 0;
-    if (newPriority > existingPriority) {
-      groups.set(key, app);
-    } else if (newPriority === existingPriority) {
-      // Tie: keep the one with the more recent activity
-      const ed = new Date(existing.last_activity_date || 0);
-      const nd = new Date(app.last_activity_date || 0);
-      if (nd > ed) groups.set(key, app);
+
+    const isRound = isRoundName(app.role);
+
+    if (isRound) {
+      // Try to find an existing real-role entry for this company first.
+      const target = realRoleAppsByCompany.get(company);
+      if (target) {
+        // Merge into that entry: pick the more advanced of the two.
+        const existing = groups.get(target.key);
+        if (existing) {
+          groups.set(target.key, pickWinner(existing, app));
+          continue;
+        }
+      }
+      // No real-role entry exists yet for this company — fall back to
+      // company-only key so any future real-role entry won't collide
+      // with it. This will be retroactively rerouted if a real role
+      // shows up later in the loop.
+      const key = `${company}::`;
+      const existing = groups.get(key);
+      groups.set(key, existing ? pickWinner(existing, app) : app);
+    } else {
+      // Real role name — record it for future round-name lookups
+      const key = `${company}::${role}`;
+      const existing = groups.get(key);
+      groups.set(key, existing ? pickWinner(existing, app) : app);
+      realRoleAppsByCompany.set(company, { ...app, key });
+
+      // Also: pull in any earlier company-only round entries for this company
+      const companyOnlyKey = `${company}::`;
+      const stray = groups.get(companyOnlyKey);
+      if (stray) {
+        groups.set(key, pickWinner(groups.get(key), stray));
+        groups.delete(companyOnlyKey);
+      }
     }
   }
   return Array.from(groups.values());
