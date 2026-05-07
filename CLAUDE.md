@@ -40,16 +40,20 @@ Then double-click the `.skill` file to reinstall in Claude.
 ```
 src/
   index.js                  orchestrator + cron scheduler
-  db.js                     SQLite (node:sqlite built-in, no native deps)
+  db.js                     jobs.db SQLite helpers (uses node:sqlite)
   scorer.js                 Claude scoring (imports from candidate-profile.js)
   candidate-profile.js      YOUR profile — git-ignored, never committed
   candidate-profile.example.js  template for new users
   email.js                  SendGrid HTML digest
   scrapers/
-    serpapi.js              Google Jobs
+    serpapi.js              Google Jobs (optional, requires SERPAPI_KEY)
     linkedin.js             LinkedIn guest API + cheerio
-    greenhouse.js           ~40 consumer/tech companies
-    lever.js                ~35 consumer/tech companies
+    greenhouse.js           ~70 companies across target industries
+    lever.js                ~35 companies across target industries
+    ashby.js                ~30 companies (returns full descriptions inline)
+  pipeline/
+    db.js                   pipeline.db SQLite helpers (applications + events)
+    classifier.js           heuristic email classifier (inbound + outbound)
 .claude/
   skill/SKILL.md            source for /job-hunt slash command
   skill/SETUP.md            source for /job-hunt-setup (first-time setup wizard)
@@ -57,8 +61,11 @@ src/
 scripts/
   setup.js                  terminal fallback for setup (non-Claude Code users)
   serve-dashboard.js        local HTTP dashboard server (port 3033)
-  store-linkedin-jobs.js    stores LinkedIn scrape results to DB
-jobs.db                     SQLite database (git-ignored, auto-created on first run)
+  store-linkedin-jobs.js    stores LinkedIn scrape results to jobs.db
+  process-emails.js         classifies fetched emails → upserts pipeline.db
+  get-pipeline.js           prints pipeline summary JSON for the briefing
+jobs.db                     job listings (git-ignored, auto-created)
+pipeline.db                 application pipeline (git-ignored, auto-created)
 ```
 
 ## Key facts
@@ -82,3 +89,34 @@ Edit `src/candidate-profile.js` — change `CANDIDATE_PROFILE` (your background)
   - Find slugs at: `https://boards.greenhouse.io/{slug}`
 - **Lever**: append slugs to `COMPANIES` in `src/scrapers/lever.js`
   - Find slugs at: `https://jobs.lever.co/{slug}`
+- **Ashby**: append slugs to `COMPANIES` in `src/scrapers/ashby.js`
+  - Find slugs at: `https://jobs.ashbyhq.com/{slug}`
+  - Ashby's API returns full job descriptions inline, so scoring is more accurate
+    for these jobs than for Greenhouse/Lever ones.
+
+## Application pipeline tracking
+
+Beyond job discovery, the agent tracks the user's application pipeline by
+scanning Gmail for both **inbound** recruiter emails and **outbound** thank-you
+notes the user sends after interviews. Classification is heuristic (no LLM)
+and lives in `src/pipeline/classifier.js`.
+
+When a sent thank-you note doesn't match an existing Gmail thread, the
+classifier merges into the most-recent active application for the same company
+via `findActiveApplicationByCompany()` so a fresh thread doesn't create
+a duplicate row.
+
+Pass `USER_EMAIL=<your-email>` to `process-emails.js` so it can identify
+outbound emails reliably.
+
+## Dashboard tabs
+
+The dashboard at `http://localhost:3033` has four tabs:
+
+- **Open Roles** — active jobs awaiting triage (excludes applied + not_fit)
+- **Pipeline** — applications grouped by stage (offer / interview / applied / etc.)
+- **Applied** — jobs the user marked applied; can be unapplied to restore
+- **Not a Fit** — dismissed jobs with the optional feedback reason shown
+
+The Not a Fit tab's captured `not_fit_reason` text is fed back into Claude
+on the next scoring run so similar future roles score lower.

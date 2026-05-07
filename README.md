@@ -17,11 +17,13 @@ Built to run inside [Claude Code](https://claude.ai/code) with the Chrome extens
 
 2. **Deduplicates** against a local SQLite database — you never see the same posting twice.
 
-3. **Scores each job 1–10** with Claude, based on your personal candidate profile, target roles, and preferences.
+3. **Scores each job 1–10** with Claude, based on your personal candidate profile, target roles, and preferences. Past "not a fit" feedback is fed back into scoring so the model learns from your decisions.
 
-4. **Serves a dashboard** at `http://localhost:3033` — filter by score, mark applied, archive irrelevant roles.
+4. **Tracks your application pipeline** by scanning Gmail — both inbound recruiter emails and the thank-you notes you send after interviews. Status advances automatically (Applied → Interview → Follow-up → Offer / Rejection).
 
-5. **Optionally emails** a digest of top-scoring jobs via SendGrid.
+5. **Serves a dashboard** at `http://localhost:3033` with four tabs: Open Roles, Pipeline, Applied, Not a Fit.
+
+6. **Optionally emails** a digest of top-scoring jobs via SendGrid.
 
 ---
 
@@ -99,15 +101,28 @@ To update your profile — new job, new salary floor, new target titles — just
 
 ### The dashboard
 
-The dashboard at `http://localhost:3033` shows all discovered jobs sorted by score.
+The dashboard at `http://localhost:3033` shows discovered jobs sorted by score across four tabs:
 
-| Feature | Description |
+| Tab | What it shows |
 |---|---|
-| Score filter | Show only 9–10, 7–8, or all jobs |
-| Score badges | Color-coded by fit — green, blue, amber, red |
-| Apply button | Direct link to the ATS page or company careers site |
-| Mark applied | Moves job to "Applied" state |
-| Archive | Hides irrelevant jobs without deleting them |
+| **Open Roles** | Active jobs awaiting triage. Filter by score, source, or location. |
+| **Pipeline** | Applications grouped by stage: Offer · Interview · Take-home · Follow-up · Applied · Rejection. Scanned automatically from Gmail. |
+| **Applied** | Jobs you've marked as applied. Click "Unapply" to restore them to Open Roles. |
+| **Not a Fit** | Dismissed jobs. Your reason (if you provide one) is shown on the card. |
+
+| Action | Behavior |
+|---|---|
+| `+ Applied` | Marks the job applied and removes it from Open Roles → Applied tab |
+| `×` (Not a Fit) | Opens a modal asking why; reason is fed back into Claude on the next scoring run so similar roles score lower |
+| `View on …` | Direct link to the ATS or company careers page |
+
+### Application pipeline tracking
+
+The agent scans Gmail for both:
+- **Inbound** recruiter and ATS emails (interviews scheduled, offers, rejections, take-home assignments)
+- **Outbound** thank-you notes you send after interviews — automatically advances the application's status to `interview_follow_up`
+
+Application status persists in `pipeline.db` and is rendered in the Pipeline tab. Cold applications (14+ days no activity) are flagged 🥶.
 
 ---
 
@@ -171,21 +186,26 @@ cron.schedule('0 7,17 * * *', ...) // 7 AM and 5 PM
 job-discovery-agent/
 ├── src/
 │   ├── index.js                     # Orchestrator + cron scheduler
-│   ├── db.js                        # SQLite helpers
+│   ├── db.js                        # jobs.db SQLite helpers
 │   ├── scorer.js                    # Claude scoring logic
 │   ├── candidate-profile.js         # YOUR profile (git-ignored, created by setup)
 │   ├── candidate-profile.example.js # Filled-in example showing expected detail level
 │   ├── email.js                     # SendGrid digest builder
-│   └── scrapers/
-│       ├── greenhouse.js            # Greenhouse public boards (~70 companies)
-│       ├── lever.js                 # Lever public postings (~35 companies)
-│       ├── ashby.js                 # Ashby public boards (~30 companies, full descriptions)
-│       ├── linkedin.js              # LinkedIn guest API
-│       └── serpapi.js               # Google Jobs via SerpAPI
+│   ├── scrapers/
+│   │   ├── greenhouse.js            # Greenhouse public boards (~70 companies)
+│   │   ├── lever.js                 # Lever public postings (~35 companies)
+│   │   ├── ashby.js                 # Ashby public boards (~30 companies, full descriptions)
+│   │   ├── linkedin.js              # LinkedIn guest API
+│   │   └── serpapi.js               # Google Jobs via SerpAPI
+│   └── pipeline/
+│       ├── db.js                    # pipeline.db helpers (applications + events)
+│       └── classifier.js            # Email classifier — inbound + outbound (sent thank-yous)
 ├── scripts/
 │   ├── setup.js                     # Terminal fallback for setup
 │   ├── serve-dashboard.js           # Local HTTP dashboard on port 3033
-│   └── store-linkedin-jobs.js       # Stores Chrome MCP LinkedIn results
+│   ├── store-linkedin-jobs.js       # Stores Chrome MCP LinkedIn results to jobs.db
+│   ├── process-emails.js            # Classifies fetched emails → upserts pipeline.db
+│   └── get-pipeline.js              # Prints pipeline summary JSON for the briefing
 ├── .claude/
 │   ├── skill/SKILL.md               # /job-hunt slash command definition
 │   ├── skill/SETUP.md               # /job-hunt-setup wizard definition
@@ -201,6 +221,7 @@ job-discovery-agent/
 
 - `candidate-profile.js` — git-ignored, your personal data stays on your machine
 - `jobs.db` — git-ignored, your job search history stays local
+- `pipeline.db` — git-ignored, your application pipeline (parsed from your Gmail) stays local
 - `.env` — git-ignored, your API keys stay local
 - No data is sent anywhere except the APIs you explicitly configure
 
