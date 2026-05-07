@@ -605,7 +605,7 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:
 /* ── Job card ── */
 .job-card{background:#fff;border-radius:12px;border:1px solid #E0DBD4;position:relative;transition:box-shadow 150ms ease,transform 150ms ease;overflow:hidden;box-shadow:0 2px 8px rgba(28,28,28,.05)}
 .job-card:hover{box-shadow:0 6px 24px rgba(28,28,28,.09);transform:translateY(-1px)}
-.job-card.dimmed{opacity:.5}
+.job-card.dimmed{opacity:.7;background:#FAF6F2;border-color:#D8CFC4}
 .job-card.is-applied{background:#F4F8F6;border-color:#B8D0C8}
 .job-card.is-applied .card-title{color:#3F5F54}
 .job-card.is-applied .score-badge{opacity:.6}
