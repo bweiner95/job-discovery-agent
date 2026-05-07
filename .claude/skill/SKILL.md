@@ -150,25 +150,36 @@ node scripts/store-linkedin-jobs.js << 'JOBSEOF'
 JOBSEOF
 ```
 
-**Description enrichment (important for accurate scoring):** For each NEW LinkedIn job (not duplicates), navigate to its individual page and extract the description text. This lets the YOE gate and other description-based scoring rules apply to LinkedIn jobs the same way they apply to Ashby ones.
+**Description enrichment (important for accurate scoring):** Right after extracting each city's job cards, harvest descriptions while still on that search page. The JD lazy-loads in the right detail pane only after a real click.
 
-For each new job:
-1. Navigate to `https://www.linkedin.com/jobs/view/{job_id}/`
-2. Run extraction JS:
-```javascript
-const desc = document.querySelector('.jobs-description__content, .show-more-less-html__markup, [class*="job-details-jobs-unified-top-card"] + div [class*="description"]')?.innerText
-  || document.querySelector('article')?.innerText
-  || '';
-JSON.stringify({ job_id: location.pathname.match(/\/jobs\/view\/(\d+)/)?.[1], description: desc.slice(0, 8000) })
-```
+**Critical constraints:**
+- `/jobs/view/{id}/` standalone URL does NOT render the JD. Don't go there.
+- Description only loads on `/jobs/search/?...&currentJobId={id}` AND only after a real `mcp__Claude_in_Chrome__computer` `left_click` (programmatic `.click()` won't trigger LinkedIn's React handlers).
+- Wait 5 seconds after clicking before extracting.
 
-Then batch-write:
+**Per visible card on the city's search page:**
+1. Get its bounding rect via JS:
+   ```javascript
+   const card = document.querySelector('[data-job-id="<JOB_ID>"]');
+   if (card) card.scrollIntoView({ block: 'center' });
+   const r = card?.getBoundingClientRect();
+   JSON.stringify({ x: r ? Math.round(r.x + r.width/2) : null, y: r ? Math.round(r.y + r.height/2) : null });
+   ```
+2. Real click via `mcp__Claude_in_Chrome__computer { action: "left_click", coordinate: [x, y] }`.
+3. Wait + extract:
+   ```javascript
+   (async () => { await new Promise(r => setTimeout(r, 5000)); const el = document.querySelector('.jobs-description__content'); return JSON.stringify({ job_id: '<JOB_ID>', description: (el?.innerText ?? '').slice(0, 8000) }); })()
+   ```
+
+After all 3 cities, batch-write:
 ```bash
 cd "<YOUR_PROJECT_PATH>"
 node scripts/enrich-linkedin-descriptions.js << 'EOF'
 [{"job_id":"...","description":"..."},...]
 EOF
 ```
+
+**Limit:** only currently-visible jobs (~21/run total) get enriched. Older LinkedIn jobs that fell out of the past-week filter cannot be enriched and will keep scoring on title/company alone. This is a known constraint of LinkedIn's gating.
 
 **After all 3 cities are scraped, descriptions enriched, and stored**, close the LinkedIn tab so it doesn't linger in the user's browser. Call `mcp__Claude_in_Chrome__tabs_close_mcp` with the `tabId` from the earlier `tabs_context_mcp` call. If the close fails (tab already closed, etc.), continue silently.
 

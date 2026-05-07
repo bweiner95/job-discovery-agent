@@ -61,26 +61,47 @@ node scripts/store-linkedin-jobs.js << 'JOBSEOF'
 JOBSEOF
 ```
 
-**Description enrichment (important for accurate scoring):** For each newly stored LinkedIn job, navigate to its individual page and extract the description text so the YOE gate and other description-based scoring can apply. Only do this for new jobs (the store script reports `new` count and which IDs are new — re-extract is wasteful).
+**Description enrichment (important for accurate scoring):** Right after extracting cards on each city's search page, harvest the descriptions for the cards still visible there — the JD lazy-loads in the right pane when you click into a card.
 
-For each new LinkedIn job:
-1. Navigate to `https://www.linkedin.com/jobs/view/{job_id}/`
-2. Wait briefly for the panel to load
-3. Run extraction JS:
-```javascript
-const desc = document.querySelector('.jobs-description__content, .show-more-less-html__markup, [class*="job-details-jobs-unified-top-card"] + div [class*="description"]')?.innerText
-  || document.querySelector('article')?.innerText
-  || '';
-JSON.stringify({ job_id: location.pathname.match(/\/jobs\/view\/(\d+)/)?.[1], description: desc.slice(0, 8000) })
-```
+**IMPORTANT — what actually works:**
+- LinkedIn's `/jobs/view/{id}/` standalone URL **does NOT render** the description for direct visits. Don't navigate there.
+- The description only loads in the right-side detail pane on the `/jobs/search/?...&currentJobId={id}` URL, AND only after a real click on the card.
+- Programmatic JS clicks (`.click()`) **do not** trigger LinkedIn's React handler. You must use `mcp__Claude_in_Chrome__computer` with `action: "left_click"` (real click).
+- After click, wait **5 seconds** before extracting — LinkedIn lazy-loads the body.
 
-After collecting all descriptions, store them in one batch:
+**Loop, per city — do this RIGHT AFTER step's card extraction (still on the same search page, before navigating away):**
+
+For each card you just extracted:
+1. Set the URL via JS to `currentJobId={id}` so LinkedIn highlights that card:
+   ```javascript
+   const newUrl = new URL(location.href);
+   newUrl.searchParams.set('currentJobId', '<JOB_ID>');
+   history.replaceState(null, '', newUrl.toString());
+   ```
+2. Find the card on the page via `mcp__Claude_in_Chrome__javascript_tool`:
+   ```javascript
+   const card = document.querySelector('[data-job-id="<JOB_ID>"]');
+   if (card) card.scrollIntoView({ block: 'center' });
+   const r = card?.getBoundingClientRect();
+   JSON.stringify({ x: r ? Math.round(r.x + r.width/2) : null, y: r ? Math.round(r.y + r.height/2) : null });
+   ```
+3. Real-click via `mcp__Claude_in_Chrome__computer` `left_click` at `{x, y}` from step 2.
+4. Wait 5 seconds (extract via JS that begins with `await new Promise(r => setTimeout(r, 5000));`).
+5. Extract:
+   ```javascript
+   const el = document.querySelector('.jobs-description__content');
+   JSON.stringify({ job_id: '<JOB_ID>', description: (el?.innerText ?? '').slice(0, 8000) });
+   ```
+
+After collecting all descriptions across the 3 cities, store them in one batch:
 ```bash
 cd "<YOUR_PROJECT_PATH>"
 node scripts/enrich-linkedin-descriptions.js << 'EOF'
-[{"job_id":"...","description":"..."},...]
+[{"job_id":"...","description":"..."}, ...]
 EOF
 ```
+
+**Limit:** only enrich jobs currently visible on the search page (~7 per city = ~21/run). Older jobs that fell out of the past-week filter cannot be re-enriched — accept this as a known limitation. Score them based on title/company alone.
 
 **After all 3 cities are scraped, descriptions enriched, and stored**, close the LinkedIn tab to keep the user's browser tidy. Call `mcp__Claude_in_Chrome__tabs_close_mcp` with the `tabId` from the earlier `tabs_context_mcp` call. If the close fails (tab already closed by user, etc.), continue silently.
 
