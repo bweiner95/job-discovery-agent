@@ -38,6 +38,7 @@ import { classifyEmail, eventTypeToStatus } from '../src/pipeline/classifier.js'
 import {
   isFirstRun,
   upsertApplication,
+  findActiveApplicationByCompany,
   addEmailEvent,
   markColdApplications,
   recordRun,
@@ -98,6 +99,11 @@ async function main() {
     stats.skipped += skippedOld;
   }
 
+  // User email is needed so the classifier can detect outbound (sent) thank-you notes.
+  // Pass via USER_EMAIL env var; without it, the classifier falls back to a heuristic
+  // that's correct most of the time but less reliable.
+  const userEmail = process.env.USER_EMAIL || null;
+
   for (const email of filtered) {
     const classification = classifyEmail({
       subject: email.subject ?? '',
@@ -105,6 +111,7 @@ async function main() {
       body: email.body ?? '',
       snippet: email.snippet ?? '',
       to: email.to ?? '',
+      userEmail,
     });
 
     // Skip very low-confidence unknowns
@@ -124,8 +131,25 @@ async function main() {
       continue;
     }
 
+    // For outbound thank-you notes (interview_follow_up triggered by a sent email
+    // whose subject/body looked like a thank-you), if this thread doesn't match an
+    // existing application, try to merge into the most recent active application
+    // for the same company so we don't create a duplicate row.
+    let mergedThreadId = threadId;
+    const isOutboundFollowUp =
+      classification.eventType === 'interview_follow_up' &&
+      userEmail &&
+      (email.from ?? '').toLowerCase().includes(userEmail.toLowerCase());
+
+    if (isOutboundFollowUp) {
+      const existing = findActiveApplicationByCompany(classification.company);
+      if (existing && existing.gmail_thread_id !== threadId) {
+        mergedThreadId = existing.gmail_thread_id; // upsert against the original thread
+      }
+    }
+
     const result = upsertApplication({
-      gmail_thread_id: threadId,
+      gmail_thread_id: mergedThreadId,
       company: classification.company,
       role: classification.role ?? null,
       date_applied: dateApplied,

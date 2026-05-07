@@ -123,6 +123,20 @@ const PATTERNS = {
     /thank\s+you\s+for\s+your\s+interest\s+in\s+(?:the\s+)?(?:position|role|opportunity)/i,
     /thanks\s+for\s+applying/i,
   ],
+
+  // Patterns for emails the candidate themselves sends — most often a post-interview
+  // thank-you note. Detecting these lets us advance status to interview_follow_up
+  // without needing a recruiter to reply first.
+  sent_thank_you: [
+    /thank\s+you\s+for\s+(?:taking\s+the\s+)?(?:your\s+)?time\s+(?:today|to\s+(?:speak|chat|meet|talk))/i,
+    /thanks\s+(?:so\s+much\s+)?for\s+(?:taking\s+the\s+)?(?:your\s+)?time/i,
+    /(?:it\s+was\s+)?(?:great|wonderful|a\s+pleasure)\s+(?:to\s+)?(?:speaking|chatting|meeting|talking|connect(?:ing)?)\s+with\s+you/i,
+    /(?:really\s+)?enjoyed\s+(?:our\s+)?(?:conversation|chat|discussion|call|interview)/i,
+    /following\s+up\s+(?:on|after)\s+(?:our|today's|yesterday's)\s+(?:conversation|chat|interview|call|meeting)/i,
+    /appreciate(?:d)?\s+(?:the\s+)?(?:opportunity|chance)\s+to\s+(?:speak|chat|interview|connect|learn)/i,
+    /thank\s+you\s+for\s+(?:the\s+)?(?:conversation|chat|interview|opportunity\s+to\s+(?:speak|interview|chat))/i,
+    /looking\s+forward\s+to\s+(?:hearing|next\s+steps|the\s+next\s+(?:round|step))/i,
+  ],
 };
 
 // ─── Company extraction ───────────────────────────────────────────────────────
@@ -229,54 +243,91 @@ export function classifyEmail({ subject, from, body, snippet, to, userEmail }) {
   const isAts = ATS_DOMAINS.some(d => fromDomain?.includes(d));
   const isNoReply = /noreply|no-reply|donotreply|do-not-reply/i.test(from ?? '');
 
+  // Detect outbound emails (sent BY the user). When userEmail is provided, match it
+  // exactly; otherwise fall back to checking common consumer email domains in the From.
+  const fromAddr = extractDomain(from)
+    ? from.toLowerCase().match(/[\w.+-]+@[\w.-]+/)?.[0]
+    : null;
+  const isSentByUser = userEmail
+    ? fromAddr === userEmail.toLowerCase()
+    : !!(fromDomain && GENERIC_EMAIL_DOMAINS.includes(fromDomain) && to && !to.toLowerCase().includes(fromAddr ?? '@'));
+
   // Helper: test a list of patterns against text
   const matches = (patternList, text) => patternList.some(p => p.test(text));
 
   let eventType = 'unknown';
   let confidence = 0.3;
 
-  // Priority order: offer > rejection > interview_scheduled > interview_follow_up
-  //                 > application_viewed > recruiter_outreach > application_submitted
+  // OUTBOUND CLASSIFICATION: if the user sent this email, the only thing we care
+  // about is whether it's a post-interview thank-you note. Treat that as a strong
+  // signal to advance status to interview_follow_up.
+  if (isSentByUser) {
+    if (matches(PATTERNS.sent_thank_you, combined)) {
+      eventType = 'interview_follow_up';
+      confidence = 0.85;
+    } else {
+      // Sent email that isn't a thank-you — skip it (don't pollute classification)
+      eventType = 'unknown';
+      confidence = 0.2;
+    }
+  } else {
+    // INBOUND CLASSIFICATION: existing priority order
+    // offer > rejection > interview_scheduled > interview_follow_up
+    //   > application_viewed > recruiter_outreach > application_submitted
 
-  if (matches(PATTERNS.offer, combined)) {
-    eventType = 'offer';
-    confidence = 0.95;
-  } else if (matches(PATTERNS.rejection, combined)) {
-    eventType = 'rejection';
-    confidence = 0.9;
-  } else if (matches(PATTERNS.take_home_submitted, combined)) {
-    eventType = 'take_home_submitted';
-    confidence = /take.?home/i.test(subject ?? '') ? 0.92 : 0.75;
-  } else if (matches(PATTERNS.interview_scheduled, combined)) {
-    // Extra confidence if subject also contains "interview"
-    eventType = 'interview_scheduled';
-    confidence = /interview/i.test(subject ?? '') ? 0.92 : 0.75;
-  } else if (matches(PATTERNS.interview_follow_up, combined)) {
-    eventType = 'interview_follow_up';
-    confidence = 0.7;
-  } else if (matches(PATTERNS.application_viewed, combined)) {
-    eventType = 'application_viewed';
-    confidence = 0.85;
-  } else if (
-    !isNoReply &&
-    !isAts &&
-    matches(PATTERNS.recruiter_outreach, combined)
-  ) {
-    eventType = 'recruiter_outreach';
-    confidence = 0.75;
-  } else if (
-    matches(PATTERNS.application_submitted, combined) ||
-    (isAts && isNoReply)
-  ) {
-    eventType = 'application_submitted';
-    confidence = isAts ? 0.88 : 0.72;
-  } else if (isAts) {
-    // ATS email we couldn't specifically classify — treat as application activity
-    eventType = 'application_submitted';
-    confidence = 0.5;
+    if (matches(PATTERNS.offer, combined)) {
+      eventType = 'offer';
+      confidence = 0.95;
+    } else if (matches(PATTERNS.rejection, combined)) {
+      eventType = 'rejection';
+      confidence = 0.9;
+    } else if (matches(PATTERNS.take_home_submitted, combined)) {
+      eventType = 'take_home_submitted';
+      confidence = /take.?home/i.test(subject ?? '') ? 0.92 : 0.75;
+    } else if (matches(PATTERNS.interview_scheduled, combined)) {
+      eventType = 'interview_scheduled';
+      confidence = /interview/i.test(subject ?? '') ? 0.92 : 0.75;
+    } else if (matches(PATTERNS.interview_follow_up, combined)) {
+      eventType = 'interview_follow_up';
+      confidence = 0.7;
+    } else if (matches(PATTERNS.application_viewed, combined)) {
+      eventType = 'application_viewed';
+      confidence = 0.85;
+    } else if (
+      !isNoReply &&
+      !isAts &&
+      matches(PATTERNS.recruiter_outreach, combined)
+    ) {
+      eventType = 'recruiter_outreach';
+      confidence = 0.75;
+    } else if (
+      matches(PATTERNS.application_submitted, combined) ||
+      (isAts && isNoReply)
+    ) {
+      eventType = 'application_submitted';
+      confidence = isAts ? 0.88 : 0.72;
+    } else if (isAts) {
+      eventType = 'application_submitted';
+      confidence = 0.5;
+    }
   }
 
-  const company = extractCompany(subject, bodyText, from);
+  // Company extraction:
+  // - Outbound: prefer the recipient's domain directly (text patterns are unreliable
+  //   in user-authored prose like "Thank you - Acme interview")
+  // - Inbound: try explicit text patterns first, fall back to sender's domain
+  let company;
+  if (isSentByUser) {
+    const toDomain = extractDomain(to);
+    if (toDomain && !GENERIC_EMAIL_DOMAINS.includes(toDomain)) {
+      company = domainToCompanyName(toDomain);
+    } else {
+      // Recipient is a generic-domain personal email — try text patterns as fallback
+      company = extractCompany(subject, bodyText, to);
+    }
+  } else {
+    company = extractCompany(subject, bodyText, from);
+  }
   const role = extractRole(subject, bodyText);
 
   return { eventType, company, role, confidence };

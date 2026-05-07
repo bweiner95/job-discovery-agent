@@ -220,13 +220,19 @@ Call `mcp__gmail__search_emails` with query `from:me` and maxResults 1 as a heal
   2. Also run: `open -a "Claude"` to bring the Claude app to focus.
   3. Skip the Gmail steps and note the auth failure in the Step 10 summary.
 
-If auth is healthy, search using `mcp__gmail__search_emails` (replace DATE with `since` from Step 4, format `YYYY/MM/DD`):
+If auth is healthy, run **two** searches via `mcp__gmail__search_emails` (replace DATE with `since` from Step 4, format `YYYY/MM/DD`):
 
+**Search 1 — Inbound (recruiters / ATS):**
 ```
 (subject:(application OR interview OR offer OR rejection OR "thank you for applying" OR "moving forward" OR "next steps" OR recruiter OR "your application" OR "phone screen" OR "we'd like to" OR "position has been filled" OR "take home" OR "assignment" OR "case study") OR from:(greenhouse.io OR lever.co OR workday.com OR ashbyhq.com OR taleo.net OR icims.com OR jobvite.com OR smartrecruiters.com OR bamboohr.com OR dover.com)) after:DATE
 ```
 
-Retrieve up to 100 results.
+**Search 2 — Outbound (user-sent thank-you notes after interviews):**
+```
+from:me (subject:(thank OR "great speaking" OR "great chatting" OR "great meeting" OR "following up" OR "looking forward" OR "appreciate") OR "thank you for taking the time" OR "really enjoyed our" OR "looking forward to next steps") after:DATE
+```
+
+Retrieve up to 100 results from each. Dedup by messageId when combining.
 
 ### Step 6 — Fetch email bodies
 
@@ -248,10 +254,12 @@ For each email, call `mcp__gmail__read_email` to get the full message. Build a J
 
 ### Step 7 — Classify and store
 
+Pass `USER_EMAIL` so the classifier can correctly identify outbound thank-you notes as `interview_follow_up` events:
+
 ```bash
 cd "<YOUR_PROJECT_PATH>"
-node scripts/process-emails.js << 'EMAILEOF'
-[PASTE JSON ARRAY HERE]
+USER_EMAIL=your.email@gmail.com node scripts/process-emails.js << 'EMAILEOF'
+[PASTE COMBINED JSON ARRAY HERE — inbound + outbound emails]
 EMAILEOF
 ```
 

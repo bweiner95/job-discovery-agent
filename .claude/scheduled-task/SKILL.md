@@ -141,20 +141,28 @@ Call `mcp__gmail__search_emails` with query `from:me` and maxResults 1 as a heal
 
   **Note:** `mcp__Claude_in_Chrome__navigate` cannot open `claude.ai` or `mail.google.com` — those domains are blocked. Use `open` (Bash) instead.
 
-If auth is healthy, run the full search using `mcp__gmail__search_emails` with `sinceDate` from Step 4 (format `after:YYYY/MM/DD`):
+If auth is healthy, run **two** searches using `mcp__gmail__search_emails` with `sinceDate` from Step 4 (format `after:YYYY/MM/DD`):
 
+**Search 1 — Inbound (recruiters / ATS):**
 ```
 (subject:(application OR interview OR offer OR rejection OR "thank you for applying" OR "moving forward" OR "next steps" OR recruiter OR "your application" OR "phone screen" OR "we'd like to" OR "position has been filled" OR "take home" OR "assignment" OR "case study") OR from:(greenhouse.io OR lever.co OR workday.com OR ashbyhq.com OR taleo.net OR icims.com OR jobvite.com OR smartrecruiters.com OR bamboohr.com OR dover.com)) after:YYYY/MM/DD
 ```
 
-Retrieve up to 100 results. Fetch full body for each via `mcp__gmail__read_email`.
+**Search 2 — Outbound (user's sent thank-you notes after interviews):**
+```
+from:me (subject:(thank OR "great speaking" OR "great chatting" OR "great meeting" OR "following up" OR "looking forward" OR "appreciate") OR "thank you for taking the time" OR "really enjoyed our" OR "looking forward to next steps") after:YYYY/MM/DD
+```
+
+Combine results from both searches (dedup by messageId). Fetch full body for each via `mcp__gmail__read_email`. Up to 100 each.
 
 ### Step 6 — Classify and store
 
+Pass `USER_EMAIL` so the classifier knows which emails are outbound (sent by the user) — outbound thank-you notes are mapped to `interview_follow_up` events:
+
 ```bash
 cd "<YOUR_PROJECT_PATH>"
-node scripts/process-emails.js << 'EMAILEOF'
-[PASTE JSON ARRAY HERE]
+USER_EMAIL=bweiner95@gmail.com node scripts/process-emails.js << 'EMAILEOF'
+[PASTE JSON ARRAY HERE — both inbound and outbound emails combined]
 EMAILEOF
 ```
 

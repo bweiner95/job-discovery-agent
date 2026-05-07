@@ -91,6 +91,24 @@ export function getApplication(threadId) {
 }
 
 /**
+ * Find the most recent active application for a company. Used when a sent
+ * thank-you note creates a new Gmail thread that doesn't match the existing
+ * recruiter thread — we still want to advance the existing application's status
+ * rather than create a duplicate row.
+ */
+export function findActiveApplicationByCompany(company) {
+  if (!company) return null;
+  const db = getDb();
+  return db.prepare(`
+    SELECT * FROM applications
+    WHERE LOWER(company) = LOWER(?)
+      AND current_status NOT IN ('rejection', 'offer')
+    ORDER BY last_activity_date DESC, id DESC
+    LIMIT 1
+  `).get(company) ?? null;
+}
+
+/**
  * Insert or update an application record.
  */
 export function upsertApplication(data) {
