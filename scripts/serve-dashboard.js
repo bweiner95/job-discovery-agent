@@ -39,6 +39,7 @@ function openJobsDb() {
     const db = new DatabaseSync(JOBS_DB_PATH);
     try { db.exec(`ALTER TABLE jobs ADD COLUMN status TEXT DEFAULT 'active'`); } catch {}
     try { db.exec(`ALTER TABLE jobs ADD COLUMN not_fit_reason TEXT`); } catch {}
+    try { db.exec(`ALTER TABLE jobs ADD COLUMN duplicate_of INTEGER`); } catch {}
     return db;
   } catch { return null; }
 }
@@ -52,9 +53,23 @@ function getJobs() {
   if (!db) return [];
   try {
     const rows = db.prepare(`
-      SELECT * FROM jobs WHERE (status IS NULL OR status = 'active')
+      SELECT * FROM jobs
+      WHERE (status IS NULL OR status = 'active')
+        AND duplicate_of IS NULL
       ORDER BY score DESC NULLS LAST, created_at DESC
     `).all();
+    // Attach the count of additional sources this job was seen on
+    const jobIds = rows.map(r => r.id);
+    if (jobIds.length) {
+      const placeholders = jobIds.map(() => '?').join(',');
+      const dupes = db.prepare(`SELECT duplicate_of, source FROM jobs WHERE duplicate_of IN (${placeholders})`).all(...jobIds);
+      const sourceMap = {};
+      for (const d of dupes) {
+        sourceMap[d.duplicate_of] = sourceMap[d.duplicate_of] || [];
+        sourceMap[d.duplicate_of].push(d.source);
+      }
+      for (const r of rows) r.also_on = sourceMap[r.id] || [];
+    }
     db.close();
     return rows;
   } catch { return []; }
@@ -64,7 +79,7 @@ function getNotFitJobs() {
   const db = openJobsDb();
   if (!db) return [];
   try {
-    const rows = db.prepare(`SELECT * FROM jobs WHERE status = 'not_fit' ORDER BY created_at DESC`).all();
+    const rows = db.prepare(`SELECT * FROM jobs WHERE status = 'not_fit' AND duplicate_of IS NULL ORDER BY created_at DESC`).all();
     db.close();
     return rows;
   } catch { return []; }
@@ -74,7 +89,7 @@ function getAppliedJobs() {
   const db = openJobsDb();
   if (!db) return [];
   try {
-    const rows = db.prepare(`SELECT * FROM jobs WHERE status = 'applied' ORDER BY score DESC NULLS LAST, created_at DESC`).all();
+    const rows = db.prepare(`SELECT * FROM jobs WHERE status = 'applied' AND duplicate_of IS NULL ORDER BY score DESC NULLS LAST, created_at DESC`).all();
     db.close();
     return rows;
   } catch { return []; }
@@ -88,6 +103,104 @@ function getApplications() {
     db.close();
     return rows;
   } catch { return []; }
+}
+
+function computeAnalytics(applications) {
+  const total = applications.length;
+  if (total === 0) return null;
+
+  // Funnel counts
+  const STAGES = ['applied', 'application_viewed', 'recruiter_outreach', 'interview_scheduled', 'take_home_submitted', 'interview_follow_up', 'offer'];
+  const counts = Object.fromEntries(STAGES.map(s => [s, 0]));
+  let rejections = 0;
+
+  for (const a of applications) {
+    if (a.current_status === 'rejection') rejections++;
+    // Apps in current_status >= stage X count for stage X (cumulative funnel)
+    const idx = STAGES.indexOf(a.current_status);
+    if (idx >= 0) {
+      for (let i = 0; i <= idx; i++) counts[STAGES[i]]++;
+    } else if (a.current_status === 'rejection') {
+      // Rejected apps still passed through "applied"
+      counts['applied']++;
+    }
+  }
+
+  // Response rate: any movement past 'applied'
+  const responded = applications.filter(a =>
+    !['applied'].includes(a.current_status) && a.current_status !== 'unknown'
+  ).length;
+  const responseRate = total > 0 ? Math.round((responded / total) * 100) : 0;
+
+  // Time-to-first-response: median days from date_applied to last_activity_date
+  // for apps that responded
+  const responseTimes = [];
+  for (const a of applications) {
+    if (!a.date_applied || !a.last_activity_date) continue;
+    if (['applied', 'unknown'].includes(a.current_status)) continue;
+    const applied = new Date(a.date_applied);
+    const activity = new Date(a.last_activity_date);
+    const days = Math.floor((activity - applied) / 86400000);
+    if (days >= 0 && days < 365) responseTimes.push(days);
+  }
+  const medianResponseDays = responseTimes.length
+    ? Math.round(responseTimes.sort((a, b) => a - b)[Math.floor(responseTimes.length / 2)])
+    : null;
+
+  // Application velocity: apps per week, last 8 weeks
+  const now = new Date();
+  const velocityWeeks = [];
+  for (let w = 7; w >= 0; w--) {
+    const weekEnd = new Date(now.getTime() - w * 7 * 86400000);
+    const weekStart = new Date(weekEnd.getTime() - 7 * 86400000);
+    const count = applications.filter(a => {
+      if (!a.date_applied) return false;
+      const d = new Date(a.date_applied);
+      return d >= weekStart && d < weekEnd;
+    }).length;
+    velocityWeeks.push({
+      label: weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      count,
+    });
+  }
+
+  // Top companies
+  const companyMap = {};
+  for (const a of applications) {
+    if (!a.company) continue;
+    const stage = ['offer', 'interview_follow_up', 'take_home_submitted', 'interview_scheduled'].includes(a.current_status) ? 'advanced'
+                : a.current_status === 'rejection' ? 'rejected' : 'pending';
+    companyMap[a.company] = companyMap[a.company] || { company: a.company, total: 0, advanced: 0, rejected: 0, pending: 0 };
+    companyMap[a.company].total++;
+    companyMap[a.company][stage]++;
+  }
+  const topCompanies = Object.values(companyMap)
+    .sort((a, b) => b.total - a.total || b.advanced - a.advanced)
+    .slice(0, 12);
+
+  // Cold rate
+  const coldCount = applications.filter(a =>
+    a.is_cold && !['offer', 'rejection'].includes(a.current_status)
+  ).length;
+  const activeCount = applications.filter(a => !['offer', 'rejection'].includes(a.current_status)).length;
+  const coldRate = activeCount > 0 ? Math.round((coldCount / activeCount) * 100) : 0;
+
+  // Rejection rate
+  const rejectionRate = total > 0 ? Math.round((rejections / total) * 100) : 0;
+
+  return {
+    total,
+    funnel: counts,
+    rejections,
+    responseRate,
+    rejectionRate,
+    medianResponseDays,
+    velocityWeeks,
+    topCompanies,
+    coldRate,
+    coldCount,
+    activeCount,
+  };
 }
 
 function updateJobStatus(id, status, reason = null) {
@@ -191,7 +304,7 @@ function getCandidateFirstName() {
 }
 const CANDIDATE_FIRST_NAME = getCandidateFirstName();
 
-function renderPage(jobs, notFitJobs, appliedJobs, applications) {
+function renderPage(jobs, notFitJobs, appliedJobs, applications, analytics) {
   const total    = jobs.length;
   const scores   = jobs.map(j => j.score).filter(s => s != null);
   const avgScore = scores.length ? (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1) : '—';
@@ -232,13 +345,14 @@ function renderPage(jobs, notFitJobs, appliedJobs, applications) {
     const src        = job.source || '';
     const isApplied  = job.status === 'applied';
 
+    const alsoOn = (job.also_on || []).filter(s => s);
     return `
-<div class="job-card${isApplied ? ' is-applied' : ''}" data-score="${score ?? 0}" data-source="${esc(src)}" data-id="${job.id}" data-date="${esc(job.created_at || '')}">
-  <button class="dismiss-btn" title="Not a fit" onclick="markNotFit(${job.id})">×</button>
+<div class="job-card card-clickable${isApplied ? ' is-applied' : ''}" data-score="${score ?? 0}" data-source="${esc(src)}" data-id="${job.id}" data-date="${esc(job.created_at || '')}" onclick="openJdPanel(event, ${job.id})">
+  <button class="dismiss-btn" title="Not a fit" onclick="event.stopPropagation();markNotFit(${job.id})">×</button>
   ${score != null ? `<div class="score-badge" style="background:${scoreBg(score)};color:${scoreColor(score)}">${score}<span>/10</span></div>` : `<div class="score-badge" style="background:#EFEAE4;color:#9E9289">—</div>`}
   <div class="card-body">
     <div class="card-title">${esc(job.title || '')}</div>
-    <div class="card-company">${esc(job.company || '')}</div>
+    <div class="card-company">${esc(job.company || '')}${alsoOn.length ? ` <span style="font-weight:400;color:#9E9289">· also on ${alsoOn.map(s => sourceLabel(s)).join(', ')}</span>` : ''}</div>
     <div class="card-chips">
       ${job.location ? `<span class="chip chip-loc">${esc(job.location)}</span>` : ''}
       <span class="chip chip-src chip-${esc(src)}">${sourceLabel(src)}</span>
@@ -248,8 +362,8 @@ function renderPage(jobs, notFitJobs, appliedJobs, applications) {
     <div class="card-footer">
       <span class="card-date">${dateStr}</span>
       <div class="card-actions">
-        <button class="btn-applied${isApplied ? ' active' : ''}" onclick="toggleApplied(this, ${job.id})">${isApplied ? '✓ Applied' : '+ Applied'}</button>
-        ${hasUrl ? `<a class="btn-view" href="${esc(url)}" target="_blank">${viewButtonLabel(src)} ↗</a>` : ''}
+        <button class="btn-applied${isApplied ? ' active' : ''}" onclick="event.stopPropagation();toggleApplied(this, ${job.id})">${isApplied ? '✓ Applied' : '+ Applied'}</button>
+        ${hasUrl ? `<a class="btn-view" href="${esc(url)}" target="_blank" onclick="event.stopPropagation()">${viewButtonLabel(src)} ↗</a>` : ''}
       </div>
     </div>
   </div>
@@ -471,6 +585,64 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:
 #log-progress-bar.indeterminate{animation:progress-slide 1.4s infinite linear;width:30%}
 @keyframes progress-slide{0%{transform:translateX(-200%)}100%{transform:translateX(400%)}}
 
+/* ── Analytics tab ── */
+.analytics-wrap{padding:32px;display:flex;flex-direction:column;gap:24px;max-width:1100px;margin:0 auto}
+.an-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.an-row.two{grid-template-columns:repeat(2,1fr)}
+.an-card{background:#fff;border:1px solid #E0DBD4;border-radius:12px;padding:18px;box-shadow:0 2px 6px rgba(28,28,28,.04)}
+.an-card-label{font-size:11px;font-weight:600;color:#6B6B6B;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px}
+.an-card-value{font-family:'Playfair Display',Georgia,serif;font-size:32px;font-weight:500;color:#1C1C1C;line-height:1}
+.an-card-sub{font-size:11px;color:#9E9289;margin-top:6px;font-style:italic}
+.an-section{background:#fff;border:1px solid #E0DBD4;border-radius:12px;padding:20px;box-shadow:0 2px 6px rgba(28,28,28,.04)}
+.an-section h3{font-family:'Playfair Display',Georgia,serif;font-size:18px;font-weight:500;color:#1C1C1C;margin-bottom:14px}
+.funnel-bar{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px}
+.funnel-label{flex:0 0 220px;color:#4A4A4A}
+.funnel-track{flex:1;background:#EFEAE4;border-radius:6px;height:18px;overflow:hidden;position:relative}
+.funnel-fill{height:100%;background:linear-gradient(90deg,#6F8F80 0%,#7a5c28 100%);transition:width 400ms}
+.funnel-count{flex:0 0 64px;text-align:right;color:#1C1C1C;font-weight:600;font-size:12px}
+.velocity-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;align-items:end;height:140px;margin-top:8px}
+.velocity-col{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px}
+.velocity-bar{background:#6F8F80;border-radius:4px 4px 0 0;width:100%;min-height:2px;transition:height 400ms}
+.velocity-label{font-size:10px;color:#9E9289;margin-top:4px}
+.velocity-value{font-size:11px;font-weight:600;color:#1C1C1C}
+.companies-table{width:100%;border-collapse:collapse;font-size:13px}
+.companies-table th{text-align:left;padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:#6B6B6B;border-bottom:2px solid #E0DBD4}
+.companies-table td{padding:10px;border-bottom:1px solid #F0EBE4}
+.companies-table tr:last-child td{border-bottom:none}
+.adv-pill{display:inline-block;padding:2px 8px;border-radius:10px;background:#E0EDE8;color:#3F5F54;font-size:11px;font-weight:600}
+.rej-pill{display:inline-block;padding:2px 8px;border-radius:10px;background:#F5E8E3;color:#8a4a35;font-size:11px;font-weight:600}
+.pen-pill{display:inline-block;padding:2px 8px;border-radius:10px;background:#EFEAE4;color:#6B6B6B;font-size:11px;font-weight:600}
+
+/* ── JD preview side panel ── */
+#jd-panel{position:fixed;top:0;right:0;height:100vh;width:560px;max-width:90vw;background:#fff;border-left:1px solid #DDD8D1;box-shadow:-12px 0 32px rgba(28,28,28,.08);transform:translateX(100%);transition:transform 280ms cubic-bezier(.4,0,.2,1);z-index:150;display:flex;flex-direction:column}
+#jd-panel.open{transform:translateX(0)}
+#jd-overlay{position:fixed;inset:0;background:rgba(28,26,24,.25);opacity:0;pointer-events:none;transition:opacity 200ms;z-index:140}
+#jd-overlay.open{opacity:1;pointer-events:auto}
+#jd-header{padding:18px 24px 14px;border-bottom:1px solid #EFEAE4;flex-shrink:0;display:flex;align-items:flex-start;gap:12px}
+#jd-header h2{font-family:'Playfair Display',Georgia,serif;font-size:20px;font-weight:500;color:#1C1C1C;line-height:1.3;letter-spacing:-0.2px;margin-bottom:4px}
+#jd-header .jd-company{font-size:13px;font-weight:600;color:#4A4A4A;margin-bottom:8px}
+#jd-header .jd-meta{display:flex;flex-wrap:wrap;gap:6px}
+#jd-close{position:absolute;top:14px;right:14px;width:30px;height:30px;border:none;background:#EFEAE4;color:#4A4A4A;border-radius:50%;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:background 150ms}
+#jd-close:hover{background:#DDD8D1;color:#1C1C1C}
+#jd-score-row{padding:14px 24px;background:#FAF8F5;border-bottom:1px solid #EFEAE4;display:flex;align-items:center;gap:14px}
+#jd-score-badge{padding:6px 12px;border-radius:8px;font-weight:700;font-size:14px}
+#jd-score-reason{font-size:12px;color:#4A4A4A;line-height:1.5;font-style:italic}
+#jd-body{flex:1;overflow-y:auto;padding:20px 24px}
+#jd-body h4{font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#6B6B6B;font-weight:600;margin-bottom:8px}
+#jd-description{font-size:13px;line-height:1.65;color:#1C1C1C;white-space:pre-wrap;word-break:break-word}
+#jd-description-empty{font-size:13px;color:#9E9289;font-style:italic;padding:20px;text-align:center;background:#FAF8F5;border-radius:8px}
+#jd-footer{padding:14px 24px;border-top:1px solid #EFEAE4;display:flex;gap:8px;flex-shrink:0;background:#fff}
+#jd-footer button,#jd-footer a{padding:9px 14px;border-radius:8px;font-family:'Inter',sans-serif;font-size:13px;font-weight:500;cursor:pointer;text-decoration:none;border:1.5px solid transparent;display:inline-flex;align-items:center;gap:6px}
+.jd-btn-apply{background:#6F8F80;color:#fff;border-color:#6F8F80}
+.jd-btn-apply:hover{background:#5E7C6F}
+.jd-btn-view{background:#fff;border-color:#DDD8D1;color:#4A4A4A}
+.jd-btn-view:hover{border-color:#6F8F80;color:#3F5F54}
+.jd-btn-dismiss{background:#fff;border-color:#DDD8D1;color:#8a4a35;margin-left:auto}
+.jd-btn-dismiss:hover{background:#F5E8E3;border-color:#8a4a35}
+.jd-also-on{font-size:11px;color:#9E9289;font-style:italic;margin-top:4px}
+
+.card-clickable{cursor:pointer}
+
 /* ── Not-a-fit feedback modal ── */
 #nf-overlay{position:fixed;inset:0;background:rgba(28,26,24,.5);display:none;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(2px)}
 #nf-overlay.open{display:flex}
@@ -544,6 +716,7 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:
 <div class="tabs">
   <div class="tab active" onclick="showTab('roles',this)">Open Roles <span class="tab-count">${total}</span></div>
   <div class="tab" onclick="showTab('pipeline',this)">Pipeline <span class="tab-count">${applications.length}</span></div>
+  <div class="tab" onclick="showTab('analytics',this)">Analytics</div>
   <div class="tab" onclick="showTab('applied',this)">Applied <span class="tab-count">${appliedJobs.length}</span></div>
   <div class="tab" onclick="showTab('notfit',this)">Not a Fit <span class="tab-count">${notFitJobs.length}</span></div>
 </div>
@@ -596,6 +769,122 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:
     ${applications.length === 0
       ? '<div class="empty-state">No pipeline data. Run /job-hunt to scan Gmail for application emails.</div>'
       : pipelineSections}
+  </div>
+</div>
+
+<!-- Analytics -->
+<div id="tab-analytics" class="tab-panel">
+  ${analytics ? `
+  <div class="analytics-wrap">
+    <div class="an-row">
+      <div class="an-card">
+        <div class="an-card-label">Total Applications</div>
+        <div class="an-card-value">${analytics.total}</div>
+        <div class="an-card-sub">${analytics.activeCount} active · ${analytics.rejections} rejected</div>
+      </div>
+      <div class="an-card">
+        <div class="an-card-label">Response Rate</div>
+        <div class="an-card-value">${analytics.responseRate}%</div>
+        <div class="an-card-sub">apps that got past "applied"</div>
+      </div>
+      <div class="an-card">
+        <div class="an-card-label">Median Response</div>
+        <div class="an-card-value">${analytics.medianResponseDays !== null ? analytics.medianResponseDays + 'd' : '—'}</div>
+        <div class="an-card-sub">days from apply to first reply</div>
+      </div>
+      <div class="an-card">
+        <div class="an-card-label">Cold Rate</div>
+        <div class="an-card-value">${analytics.coldRate}%</div>
+        <div class="an-card-sub">${analytics.coldCount} of ${analytics.activeCount} active apps idle 14+ days</div>
+      </div>
+    </div>
+
+    <div class="an-section">
+      <h3>Conversion Funnel</h3>
+      ${(() => {
+        const order = [
+          ['applied', 'Applied'],
+          ['application_viewed', 'Viewed by recruiter'],
+          ['recruiter_outreach', 'Recruiter outreach'],
+          ['interview_scheduled', 'Interview scheduled'],
+          ['take_home_submitted', 'Take-home submitted'],
+          ['interview_follow_up', 'Interview follow-up'],
+          ['offer', 'Offer'],
+        ];
+        const max = analytics.funnel['applied'] || 1;
+        return order.map(([k, label]) => {
+          const n = analytics.funnel[k] || 0;
+          const pct = (n / max) * 100;
+          const conv = max > 0 ? ((n / max) * 100).toFixed(0) : 0;
+          return `<div class="funnel-bar">
+            <span class="funnel-label">${label}</span>
+            <div class="funnel-track"><div class="funnel-fill" style="width:${pct}%"></div></div>
+            <span class="funnel-count">${n} · ${conv}%</span>
+          </div>`;
+        }).join('');
+      })()}
+    </div>
+
+    <div class="an-section">
+      <h3>Application Velocity (last 8 weeks)</h3>
+      <div class="velocity-grid">
+        ${(() => {
+          const max = Math.max(1, ...analytics.velocityWeeks.map(w => w.count));
+          return analytics.velocityWeeks.map(w => {
+            const h = (w.count / max) * 100;
+            return `<div class="velocity-col">
+              <span class="velocity-value">${w.count || ''}</span>
+              <div class="velocity-bar" style="height:${h}%"></div>
+              <span class="velocity-label">${w.label}</span>
+            </div>`;
+          }).join('');
+        })()}
+      </div>
+    </div>
+
+    <div class="an-section">
+      <h3>Top Companies (by application count)</h3>
+      <table class="companies-table">
+        <thead><tr><th>Company</th><th>Total</th><th>Advanced</th><th>Pending</th><th>Rejected</th></tr></thead>
+        <tbody>
+          ${analytics.topCompanies.map(c => `<tr>
+            <td><strong>${esc(c.company)}</strong></td>
+            <td>${c.total}</td>
+            <td>${c.advanced ? `<span class="adv-pill">${c.advanced}</span>` : '—'}</td>
+            <td>${c.pending ? `<span class="pen-pill">${c.pending}</span>` : '—'}</td>
+            <td>${c.rejected ? `<span class="rej-pill">${c.rejected}</span>` : '—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  ` : '<div class="empty-state">No application data yet. Run the agent to scan Gmail.</div>'}
+</div>
+
+<!-- JD preview side panel -->
+<div id="jd-overlay" onclick="closeJdPanel()"></div>
+<div id="jd-panel" role="dialog" aria-modal="true">
+  <div id="jd-header" style="position:relative">
+    <div style="flex:1">
+      <h2 id="jd-title">—</h2>
+      <div class="jd-company" id="jd-company">—</div>
+      <div class="jd-meta" id="jd-meta"></div>
+      <div class="jd-also-on" id="jd-also-on"></div>
+    </div>
+    <button id="jd-close" onclick="closeJdPanel()" aria-label="Close">✕</button>
+  </div>
+  <div id="jd-score-row" style="display:none">
+    <div id="jd-score-badge"></div>
+    <div id="jd-score-reason"></div>
+  </div>
+  <div id="jd-body">
+    <h4>Description</h4>
+    <div id="jd-description"></div>
+  </div>
+  <div id="jd-footer">
+    <a id="jd-btn-apply" class="jd-btn-apply" href="#" target="_blank">Apply ↗</a>
+    <button class="jd-btn-view" onclick="markAppliedFromPanel()">+ Mark Applied</button>
+    <button class="jd-btn-dismiss" onclick="dismissFromPanel()">× Not a Fit</button>
   </div>
 </div>
 
@@ -725,10 +1014,118 @@ function submitNfModal(skip) {
 
 // Escape key + Cmd/Ctrl-Enter to submit
 document.addEventListener('keydown', e => {
-  if (!document.getElementById('nf-overlay').classList.contains('open')) return;
-  if (e.key === 'Escape') closeNfModal();
-  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submitNfModal(false);
+  if (document.getElementById('nf-overlay').classList.contains('open')) {
+    if (e.key === 'Escape') closeNfModal();
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submitNfModal(false);
+    return;
+  }
+  if (document.getElementById('jd-panel').classList.contains('open')) {
+    if (e.key === 'Escape') closeJdPanel();
+  }
 });
+
+// ── JD preview panel ─────────────────────────────────────────────────────────
+let _jdCurrentId = null;
+
+const SOURCE_LABELS = { greenhouse: 'Greenhouse', lever: 'Lever', linkedin: 'LinkedIn', serpapi: 'Google', ashby: 'Ashby' };
+
+async function openJdPanel(ev, id) {
+  if (ev?.target?.closest('button, a')) return; // ignore clicks on buttons/links inside card
+  _jdCurrentId = id;
+  document.getElementById('jd-overlay').classList.add('open');
+  document.getElementById('jd-panel').classList.add('open');
+  document.getElementById('jd-title').textContent = 'Loading…';
+  document.getElementById('jd-company').textContent = '';
+  document.getElementById('jd-meta').innerHTML = '';
+  document.getElementById('jd-also-on').textContent = '';
+  document.getElementById('jd-description').textContent = '';
+  document.getElementById('jd-score-row').style.display = 'none';
+
+  try {
+    const res = await fetch('/api/jobs/' + id);
+    if (!res.ok) throw new Error('fetch failed');
+    const job = await res.json();
+    document.getElementById('jd-title').textContent = job.title || '—';
+    document.getElementById('jd-company').textContent = job.company || '—';
+
+    const meta = [];
+    if (job.location) meta.push('<span class="chip chip-loc">' + escapeHtml(job.location) + '</span>');
+    if (job.source)   meta.push('<span class="chip chip-src chip-' + job.source + '">' + (SOURCE_LABELS[job.source] || job.source) + '</span>');
+    if (job.salary)   meta.push('<span class="chip chip-salary">' + escapeHtml(job.salary) + '</span>');
+    document.getElementById('jd-meta').innerHTML = meta.join('');
+
+    if (job.aliases && job.aliases.length) {
+      document.getElementById('jd-also-on').textContent = 'Also seen on: ' + job.aliases.map(a => SOURCE_LABELS[a.source] || a.source).join(', ');
+    }
+
+    if (job.score != null) {
+      const badge = document.getElementById('jd-score-badge');
+      badge.textContent = job.score + '/10';
+      badge.style.background = scoreBg(job.score);
+      badge.style.color = scoreColor(job.score);
+      document.getElementById('jd-score-reason').textContent = job.score_reason || '';
+      document.getElementById('jd-score-row').style.display = 'flex';
+    }
+
+    const desc = (job.description || '').trim();
+    if (desc) {
+      document.getElementById('jd-description').textContent = desc;
+    } else {
+      document.getElementById('jd-description').innerHTML = '<div id="jd-description-empty">No description stored for this job. (LinkedIn jobs without enrichment, or older entries.) Click "Apply" to read on the source site.</div>';
+    }
+
+    const applyBtn = document.getElementById('jd-btn-apply');
+    const url = job.external_url || job.url || '#';
+    applyBtn.href = url;
+    applyBtn.style.display = url === '#' ? 'none' : '';
+  } catch {
+    document.getElementById('jd-title').textContent = 'Error loading job';
+  }
+}
+
+function closeJdPanel() {
+  document.getElementById('jd-overlay').classList.remove('open');
+  document.getElementById('jd-panel').classList.remove('open');
+  _jdCurrentId = null;
+}
+
+function markAppliedFromPanel() {
+  if (!_jdCurrentId) return;
+  fetch('/api/jobs/' + _jdCurrentId + '/applied', { method: 'POST' }).then(r => {
+    if (!r.ok) return;
+    const card = document.querySelector('[data-id="' + _jdCurrentId + '"]');
+    if (card) card.remove();
+    closeJdPanel();
+    applyFilters();
+  });
+}
+
+function dismissFromPanel() {
+  if (!_jdCurrentId) return;
+  const id = _jdCurrentId;
+  closeJdPanel();
+  // Reuse the existing not-a-fit modal flow
+  markNotFit(id);
+}
+
+function escapeHtml(s) {
+  return (s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function scoreColor(s) {
+  if (s == null) return '#9E9289';
+  if (s >= 9) return '#3F5F54';
+  if (s >= 7) return '#7a5c28';
+  if (s >= 5) return '#6B5B4E';
+  return '#8a4a35';
+}
+function scoreBg(s) {
+  if (s == null) return '#EFEAE4';
+  if (s >= 9) return '#E0EDE8';
+  if (s >= 7) return '#F5EDDA';
+  if (s >= 5) return '#EEE9E2';
+  return '#F5E8E3';
+}
 
 function restoreJob(id) {
   fetch('/api/jobs/' + id + '/restore', { method: 'POST' }).then(() => location.reload());
@@ -968,9 +1365,29 @@ const server = http.createServer((req, res) => {
     const notFitJobs  = getNotFitJobs();
     const appliedJobs = getAppliedJobs();
     const applications = getApplications();
-    const html = renderPage(jobs, notFitJobs, appliedJobs, applications);
+    const analytics  = computeAnalytics(applications);
+    const html = renderPage(jobs, notFitJobs, appliedJobs, applications, analytics);
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(html);
+    return;
+  }
+
+  // API endpoint for the JD preview pane
+  if (req.method === 'GET' && /^\/api\/jobs\/(\d+)$/.test(path)) {
+    const id = Number(path.match(/^\/api\/jobs\/(\d+)$/)[1]);
+    const db = openJobsDb();
+    if (!db) { res.writeHead(500); res.end(); return; }
+    try {
+      const row = db.prepare(`SELECT * FROM jobs WHERE id = ?`).get(id);
+      // Include any cross-source aliases
+      const aliases = db.prepare(`SELECT source, url, external_url FROM jobs WHERE duplicate_of = ?`).all(id);
+      db.close();
+      if (!row) { res.writeHead(404); res.end(); return; }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ...row, aliases }));
+    } catch {
+      res.writeHead(500); res.end();
+    }
     return;
   }
 

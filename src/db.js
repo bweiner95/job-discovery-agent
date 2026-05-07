@@ -35,6 +35,7 @@ function initSchema(db) {
       score_reason TEXT,
       status       TEXT    DEFAULT 'active',
       not_fit_reason TEXT,
+      duplicate_of INTEGER,
       emailed      INTEGER DEFAULT 0,
       created_at   TEXT    DEFAULT (datetime('now')),
       UNIQUE(source, job_id)
@@ -47,6 +48,82 @@ function initSchema(db) {
       jobs_emailed INTEGER DEFAULT 0
     );
   `);
+
+  // Idempotent migrations for older DBs
+  try { db.exec(`ALTER TABLE jobs ADD COLUMN duplicate_of INTEGER`); } catch {}
+  try { db.exec(`ALTER TABLE jobs ADD COLUMN status TEXT DEFAULT 'active'`); } catch {}
+  try { db.exec(`ALTER TABLE jobs ADD COLUMN not_fit_reason TEXT`); } catch {}
+}
+
+// ─── Cross-source duplicate detection ────────────────────────────────────────
+
+function normalizeText(s) {
+  return (s ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\b(inc|llc|corp|corporation|the|a|an|and)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Find an existing canonical job that matches this one across sources.
+ * Match keys: normalized company AND title share at least 70% of tokens.
+ * Returns the canonical (non-duplicate) row, or null.
+ */
+export function findCrossSourceDuplicate({ company, title, sourceToSkip }) {
+  const db = getDb();
+  const normCompany = normalizeText(company);
+  const normTitle = normalizeText(title);
+  if (!normCompany || !normTitle) return null;
+  const titleTokens = new Set(normTitle.split(' ').filter(t => t.length >= 3));
+  if (titleTokens.size === 0) return null;
+
+  // Pull all jobs with the same normalized company. Cheap because we filter
+  // by company name first; cross-source dupes within a company are rare so
+  // this is bounded.
+  const candidates = db.prepare(`
+    SELECT id, source, title, company, duplicate_of
+    FROM jobs
+    WHERE LOWER(company) LIKE ?
+      AND duplicate_of IS NULL
+      ${sourceToSkip ? 'AND source != ?' : ''}
+  `).all(`%${normCompany.split(' ')[0]}%`, ...(sourceToSkip ? [sourceToSkip] : []));
+
+  for (const c of candidates) {
+    if (normalizeText(c.company) !== normCompany) continue;
+    const cTokens = new Set(normalizeText(c.title).split(' ').filter(t => t.length >= 3));
+    if (cTokens.size === 0) continue;
+    // Jaccard similarity
+    let intersection = 0;
+    for (const t of titleTokens) if (cTokens.has(t)) intersection++;
+    const union = titleTokens.size + cTokens.size - intersection;
+    const sim = intersection / union;
+    if (sim >= 0.7) return c;
+  }
+  return null;
+}
+
+/**
+ * Mark `jobId` as a duplicate of `canonicalId`. Also backfill richer fields
+ * (description, salary, external_url) from whichever row has them onto the
+ * canonical row, so the user's view never loses information.
+ */
+export function markAsDuplicate(jobId, canonicalId) {
+  const db = getDb();
+  const dup = db.prepare(`SELECT description, salary, external_url FROM jobs WHERE id = ?`).get(jobId);
+  const canon = db.prepare(`SELECT description, salary, external_url FROM jobs WHERE id = ?`).get(canonicalId);
+  if (dup && canon) {
+    const mergedDesc = (canon.description && canon.description.length >= (dup.description?.length ?? 0))
+      ? canon.description : (dup.description ?? canon.description);
+    const mergedSalary = canon.salary || dup.salary;
+    const mergedExternalUrl = canon.external_url || dup.external_url;
+    db.prepare(`
+      UPDATE jobs SET description = ?, salary = ?, external_url = ?
+      WHERE id = ?
+    `).run(mergedDesc, mergedSalary, mergedExternalUrl, canonicalId);
+  }
+  db.prepare(`UPDATE jobs SET duplicate_of = ? WHERE id = ?`).run(canonicalId, jobId);
 }
 
 export function isFirstRun() {

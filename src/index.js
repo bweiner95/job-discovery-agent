@@ -16,7 +16,10 @@ import {
   getEmailableJobs,
   markEmailed,
   recordRun,
+  findCrossSourceDuplicate,
+  markAsDuplicate,
 } from './db.js';
+import { DatabaseSync } from 'node:sqlite';
 
 async function runAgent() {
   const startedAt = new Date();
@@ -66,16 +69,35 @@ async function runAgent() {
 
   // ── 2. Deduplicate against the database ───────────────────────────────────────
   const newJobs = [];
+  let crossSourceDupes = 0;
   for (const job of allJobs) {
     if (!job.job_id) continue;
     if (!hasJob(job.source, job.job_id)) {
       insertJob(job);
       newJobs.push(job);
+
+      // After insert, check whether this job is the same role as an existing
+      // canonical one from a different source. If so, mark as duplicate so the
+      // dashboard hides it. The canonical (oldest, first-seen) row stays active.
+      const dupe = findCrossSourceDuplicate({
+        company: job.company,
+        title: job.title,
+        sourceToSkip: job.source,
+      });
+      if (dupe) {
+        const db = new DatabaseSync(new URL('../jobs.db', import.meta.url).pathname);
+        const inserted = db.prepare(`SELECT id FROM jobs WHERE source = ? AND job_id = ?`).get(job.source, job.job_id);
+        db.close();
+        if (inserted) {
+          markAsDuplicate(inserted.id, dupe.id);
+          crossSourceDupes++;
+        }
+      }
     }
   }
 
   const dupeCount = allJobs.length - newJobs.length;
-  console.log(`New: ${newJobs.length}  |  Duplicates skipped: ${dupeCount}`);
+  console.log(`New: ${newJobs.length}  |  Same-source dupes: ${dupeCount}  |  Cross-source dupes (hidden): ${crossSourceDupes}`);
 
   if (newJobs.length === 0) {
     console.log('No new jobs to score or email.\n');

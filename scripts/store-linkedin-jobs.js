@@ -27,7 +27,11 @@
  * { "total": 25, "new": 18, "dupes": 7 }
  */
 
-import { hasJob, insertJob } from '../src/db.js';
+import { hasJob, insertJob, findCrossSourceDuplicate, markAsDuplicate } from '../src/db.js';
+import { DatabaseSync } from 'node:sqlite';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 async function main() {
   const chunks = [];
@@ -49,6 +53,7 @@ async function main() {
 
   let newCount = 0;
   let dupeCount = 0;
+  let crossSourceDupes = 0;
 
   for (const job of jobs) {
     if (!job.job_id) { dupeCount++; continue; }
@@ -58,10 +63,27 @@ async function main() {
     } else {
       insertJob({ ...job, job_id: String(job.job_id) });
       newCount++;
+
+      // Cross-source dedup: was this same role already discovered via another source?
+      const canonical = findCrossSourceDuplicate({
+        company: job.company,
+        title: job.title,
+        sourceToSkip: job.source,
+      });
+      if (canonical) {
+        const db = new DatabaseSync(resolve(__dirname, '..', 'jobs.db'));
+        const row = db.prepare(`SELECT id FROM jobs WHERE source = ? AND job_id = ?`)
+          .get(job.source, String(job.job_id));
+        db.close();
+        if (row) {
+          markAsDuplicate(row.id, canonical.id);
+          crossSourceDupes++;
+        }
+      }
     }
   }
 
-  process.stdout.write(JSON.stringify({ total: jobs.length, new: newCount, dupes: dupeCount }));
+  process.stdout.write(JSON.stringify({ total: jobs.length, new: newCount, dupes: dupeCount, crossSourceDupes }));
 }
 
 main().catch(err => { process.stderr.write(`ERROR: ${err.message}\n`); process.exit(1); });

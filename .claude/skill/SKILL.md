@@ -150,7 +150,27 @@ node scripts/store-linkedin-jobs.js << 'JOBSEOF'
 JOBSEOF
 ```
 
-**After all 3 cities are scraped and stored**, close the LinkedIn tab so it doesn't linger in the user's browser. Call `mcp__Claude_in_Chrome__tabs_close_mcp` with the `tabId` from the earlier `tabs_context_mcp` call. If the close fails (tab already closed, etc.), continue silently.
+**Description enrichment (important for accurate scoring):** For each NEW LinkedIn job (not duplicates), navigate to its individual page and extract the description text. This lets the YOE gate and other description-based scoring rules apply to LinkedIn jobs the same way they apply to Ashby ones.
+
+For each new job:
+1. Navigate to `https://www.linkedin.com/jobs/view/{job_id}/`
+2. Run extraction JS:
+```javascript
+const desc = document.querySelector('.jobs-description__content, .show-more-less-html__markup, [class*="job-details-jobs-unified-top-card"] + div [class*="description"]')?.innerText
+  || document.querySelector('article')?.innerText
+  || '';
+JSON.stringify({ job_id: location.pathname.match(/\/jobs\/view\/(\d+)/)?.[1], description: desc.slice(0, 8000) })
+```
+
+Then batch-write:
+```bash
+cd "<YOUR_PROJECT_PATH>"
+node scripts/enrich-linkedin-descriptions.js << 'EOF'
+[{"job_id":"...","description":"..."},...]
+EOF
+```
+
+**After all 3 cities are scraped, descriptions enriched, and stored**, close the LinkedIn tab so it doesn't linger in the user's browser. Call `mcp__Claude_in_Chrome__tabs_close_mcp` with the `tabId` from the earlier `tabs_context_mcp` call. If the close fails (tab already closed, etc.), continue silently.
 
 ### Step 3 — Score new jobs natively
 

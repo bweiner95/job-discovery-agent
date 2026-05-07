@@ -61,7 +61,28 @@ node scripts/store-linkedin-jobs.js << 'JOBSEOF'
 JOBSEOF
 ```
 
-**After all 3 cities are scraped and stored**, close the LinkedIn tab to keep the user's browser tidy. Call `mcp__Claude_in_Chrome__tabs_close_mcp` with the `tabId` from the earlier `tabs_context_mcp` call. If the close fails (tab already closed by user, etc.), continue silently.
+**Description enrichment (important for accurate scoring):** For each newly stored LinkedIn job, navigate to its individual page and extract the description text so the YOE gate and other description-based scoring can apply. Only do this for new jobs (the store script reports `new` count and which IDs are new — re-extract is wasteful).
+
+For each new LinkedIn job:
+1. Navigate to `https://www.linkedin.com/jobs/view/{job_id}/`
+2. Wait briefly for the panel to load
+3. Run extraction JS:
+```javascript
+const desc = document.querySelector('.jobs-description__content, .show-more-less-html__markup, [class*="job-details-jobs-unified-top-card"] + div [class*="description"]')?.innerText
+  || document.querySelector('article')?.innerText
+  || '';
+JSON.stringify({ job_id: location.pathname.match(/\/jobs\/view\/(\d+)/)?.[1], description: desc.slice(0, 8000) })
+```
+
+After collecting all descriptions, store them in one batch:
+```bash
+cd "<YOUR_PROJECT_PATH>"
+node scripts/enrich-linkedin-descriptions.js << 'EOF'
+[{"job_id":"...","description":"..."},...]
+EOF
+```
+
+**After all 3 cities are scraped, descriptions enriched, and stored**, close the LinkedIn tab to keep the user's browser tidy. Call `mcp__Claude_in_Chrome__tabs_close_mcp` with the `tabId` from the earlier `tabs_context_mcp` call. If the close fails (tab already closed by user, etc.), continue silently.
 
 ### Step 3 — Score new jobs
 

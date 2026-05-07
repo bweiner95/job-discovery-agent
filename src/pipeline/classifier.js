@@ -17,6 +17,37 @@ const GENERIC_EMAIL_DOMAINS = [
   'aol.com', 'protonmail.com', 'me.com', 'live.com', 'msn.com',
 ];
 
+// ATS / HR-tool host domains. When email comes from one of these, the domain
+// is NOT the hiring company — the actual company is in the subject line or
+// body. Don't fall back to domainToCompanyName() for these; instead force
+// text-based extraction (subject "Thank you for applying to Kikoff" → Kikoff).
+const ATS_HOST_DOMAINS = [
+  'greenhouse.io', 'greenhouse-mail.io', 'us.greenhouse-mail.io',
+  'lever.co', 'workday.com', 'myworkday.com', 'myworkdayjobs.com',
+  'taleo.net', 'icims.com', 'talent.icims.com',
+  'jobvite.com', 'smartrecruiters.com', 'ashbyhq.com',
+  'brassring.com', 'successfactors.com', 'ultipro.com', 'bamboohr.com',
+  'recruiterbox.com', 'jazzhr.com', 'pinpointhq.com', 'dover.com',
+  'gusto.com', 'workable.com', 'recruitee.com', 'zohorecruit.com',
+  'hire.trakstar.com', 'rippling.com', 'ats.rippling.com',
+  'guide.co', 'mail3.guide.co', 'mail.guide.co',
+  'eightfold.ai', 'phenom.com', 'hiretual.com',
+];
+
+// Company-domain aliases: when a hiring company sends from a non-obvious domain,
+// map it to the canonical brand name. Add as we discover them.
+const DOMAIN_ALIASES = {
+  'makenotion.com': 'Notion',
+  'mail.makenotion.com': 'Notion',
+  'tinyspeck.com': 'Slack',
+  'sliceaccount.com': 'Slice',
+  'mailgun.org': null,                  // never a company name
+  'sendgrid.net': null,
+  'mailchimp.com': null,
+  'mandrillapp.com': null,
+  'amazonses.com': null,
+};
+
 // ─── Pattern banks ────────────────────────────────────────────────────────────
 
 const PATTERNS = {
@@ -159,34 +190,78 @@ function domainToCompanyName(domain) {
     .join(' ');
 }
 
+function isAtsHostDomain(domain) {
+  if (!domain) return false;
+  const d = domain.toLowerCase();
+  return ATS_HOST_DOMAINS.some(h => d === h || d.endsWith(`.${h}`));
+}
+
 function extractCompany(subject, body, fromEmail) {
   const text = `${subject ?? ''} ${body ?? ''}`;
 
-  // Explicit patterns in text
-  const patterns = [
-    /thank\s+you\s+for\s+(?:your\s+interest\s+in|applying\s+(?:to|at))\s+([A-Z][A-Za-z0-9\s&,.'-]{1,50}?)(?:\.|,|\s+for|\s+\(|$)/,
-    /(?:at|with|@)\s+([A-Z][A-Za-z0-9\s&,.'-]{1,50}?)(?:\s+-|\s*\||,|\.|\s+for\s+the\s+role|$)/,
-    /([A-Z][A-Za-z0-9\s&,.'-]{1,50}?)\s+[-–]\s+[A-Z]/,
-    /applying\s+(?:for\s+)?(?:the\s+)?[A-Za-z\s]+(?:at|to|with)\s+([A-Z][A-Za-z0-9\s&,.'-]{1,50?})(?:\.|,|$)/,
-    /your\s+application\s+to\s+([A-Z][A-Za-z0-9\s&,.'-]{1,50?})(?:\s+has|\s+is|\.|,|$)/i,
-    /from\s+([A-Z][A-Za-z0-9\s&,.'-]{1,50?})\s+recruiting/i,
-    /the\s+([A-Z][A-Za-z0-9\s&,.'-]{1,50?})\s+team/,
-  ];
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match?.[1]) {
-      const candidate = match[1].trim().replace(/\s+/g, ' ');
-      if (candidate.length > 1 && candidate.length < 60) return candidate;
+  // Step 1: domain alias — if the sender's domain is in our alias map, use it.
+  // This catches things like makenotion.com → Notion.
+  const domain = fromEmail ? extractDomain(fromEmail) : null;
+  if (domain) {
+    const alias = DOMAIN_ALIASES[domain];
+    if (alias) return alias;            // explicit alias
+    if (alias === null) {
+      /* explicitly known non-company domain — fall through to text patterns */
     }
   }
 
-  // Fall back to sender domain
-  if (fromEmail) {
-    const domain = extractDomain(fromEmail);
-    if (domain && !GENERIC_EMAIL_DOMAINS.includes(domain)) {
-      return domainToCompanyName(domain);
+  // Step 2: when sender is an ATS host, the company is NOT in the domain.
+  // Try hard to extract from subject + body text first.
+  const isHostedAts = isAtsHostDomain(domain);
+
+  // Subject-line patterns are most reliable for ATS-hosted emails
+  const subjectPatterns = [
+    /thank\s+you\s+for\s+applying\s+(?:to|at|for)\s+([A-Z][A-Za-z0-9\s&.'-]{1,50}?)(?:\s*[-–|:,.!?]|\s+for\s|$)/i,
+    /thank\s+you\s+for\s+your\s+application\s+(?:to|at)\s+([A-Z][A-Za-z0-9\s&.'-]{1,50}?)(?:\s*[-–|:,.!?]|$)/i,
+    /your\s+application\s+(?:to|for|at)\s+([A-Z][A-Za-z0-9\s&.'-]{1,50}?)(?:\s*[-–|:,.!?]|$)/i,
+    /([A-Z][A-Za-z0-9\s&.'-]{1,40})\s+(?:application|interview|recruiting)\s+(?:update|status|team)/i,
+    /^([A-Z][A-Za-z0-9\s&.'-]{1,40})\s*[-–|:]\s*(?:thank|application|interview|hiring|recruiting)/i,
+    /next\s+steps\s+(?:with|at)\s+([A-Z][A-Za-z0-9\s&.']{1,40}?)(?:\s*[-–|:,]|$)/i,
+    /interview\s+(?:with|at)\s+([A-Z][A-Za-z0-9\s&.']{1,40}?)(?:\s*[-–|:,]|$)/i,
+    /(?:application|hiring|recruiting)\s+(?:update|status)\s+from\s+([A-Z][A-Za-z0-9\s&.'-]{1,40}?)(?:\s*[-–|:,.]|$)/i,
+    /update\s+from\s+([A-Z][A-Za-z0-9\s&.'-]{1,40}?)(?:\s*[-–|:,.]|$)/i,
+  ];
+
+  for (const pattern of subjectPatterns) {
+    const match = (subject ?? '').match(pattern);
+    if (match?.[1]) {
+      const candidate = match[1].trim().replace(/\s+/g, ' ');
+      if (candidate.length > 1 && candidate.length < 60 &&
+          !/^(re|fwd|hello|hi|dear|thank|we|i|you|your|our|the|update|status)$/i.test(candidate)) {
+        return candidate;
+      }
     }
+  }
+
+  // Body patterns (broader, fewer false positives)
+  const bodyPatterns = [
+    /thank\s+you\s+for\s+(?:your\s+interest\s+in|applying\s+(?:to|at|for))\s+([A-Z][A-Za-z0-9\s&,.'-]{1,50}?)(?:\.|,|\s+for|\s+\(|$)/,
+    /the\s+([A-Z][A-Za-z0-9\s&.'-]{1,40}?)\s+(?:recruiting|talent|hiring|people)\s+team/i,
+    /from\s+([A-Z][A-Za-z0-9\s&.'-]{1,40})\s+recruiting/i,
+    /Regards,\s*\n+\s*([A-Z][A-Za-z0-9\s&.'-]{1,40})\s*(?:recruiting|hiring|talent)/i,
+    /your\s+application\s+to\s+([A-Z][A-Za-z0-9\s&.'-]{1,50}?)(?:\s+has|\s+is|\.|,|$)/i,
+    /interest\s+in\s+([A-Z][A-Za-z0-9\s&.'-]{1,40})\s+(?:and|,|\.|—)/,
+  ];
+
+  for (const pattern of bodyPatterns) {
+    const match = (body ?? '').match(pattern);
+    if (match?.[1]) {
+      const candidate = match[1].trim().replace(/\s+/g, ' ');
+      if (candidate.length > 1 && candidate.length < 60 &&
+          !/^(re|fwd|hello|hi|dear|thank|we|i|you|your|our|the|benjamin|ben)$/i.test(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  // Step 3: fall back to sender domain — but ONLY if not an ATS host
+  if (domain && !GENERIC_EMAIL_DOMAINS.includes(domain) && !isHostedAts) {
+    return domainToCompanyName(domain);
   }
 
   return 'Unknown Company';
