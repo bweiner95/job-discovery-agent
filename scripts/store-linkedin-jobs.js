@@ -27,11 +27,7 @@
  * { "total": 25, "new": 18, "dupes": 7 }
  */
 
-import { hasJob, insertJob, findCrossSourceDuplicate, markAsDuplicate } from '../src/db.js';
-import { DatabaseSync } from 'node:sqlite';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-const __dirname = dirname(fileURLToPath(import.meta.url));
+import { hasJob, insertJob, findCrossSourceDuplicate, markAsDuplicate, findJobBySourceAndJobId } from '../src/db.js';
 
 async function main() {
   const chunks = [];
@@ -71,10 +67,7 @@ async function main() {
         sourceToSkip: job.source,
       });
       if (canonical) {
-        const db = new DatabaseSync(resolve(__dirname, '..', 'jobs.db'));
-        const row = db.prepare(`SELECT id FROM jobs WHERE source = ? AND job_id = ?`)
-          .get(job.source, String(job.job_id));
-        db.close();
+        const row = findJobBySourceAndJobId(job.source, String(job.job_id));
         if (row) {
           markAsDuplicate(row.id, canonical.id);
           crossSourceDupes++;

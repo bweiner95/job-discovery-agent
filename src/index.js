@@ -18,8 +18,8 @@ import {
   recordRun,
   findCrossSourceDuplicate,
   markAsDuplicate,
+  findJobBySourceAndJobId,
 } from './db.js';
-import { DatabaseSync } from 'node:sqlite';
 
 async function runAgent() {
   const startedAt = new Date();
@@ -85,13 +85,13 @@ async function runAgent() {
         sourceToSkip: job.source,
       });
       if (dupe) {
-        const db = new DatabaseSync(new URL('../jobs.db', import.meta.url).pathname);
-        const inserted = db.prepare(`SELECT id FROM jobs WHERE source = ? AND job_id = ?`).get(job.source, job.job_id);
-        db.close();
-        if (inserted) {
-          markAsDuplicate(inserted.id, dupe.id);
-          crossSourceDupes++;
-        }
+        try {
+          const inserted = findJobBySourceAndJobId(job.source, job.job_id);
+          if (inserted) {
+            markAsDuplicate(inserted.id, dupe.id);
+            crossSourceDupes++;
+          }
+        } catch {}
       }
     }
   }

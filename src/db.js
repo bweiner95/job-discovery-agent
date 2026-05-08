@@ -137,6 +137,11 @@ export function hasJob(source, jobId) {
   return !!db.prepare('SELECT id FROM jobs WHERE source = ? AND job_id = ?').get(source, jobId);
 }
 
+export function findJobBySourceAndJobId(source, jobId) {
+  const db = getDb();
+  return db.prepare('SELECT id FROM jobs WHERE source = ? AND job_id = ?').get(source, jobId) ?? null;
+}
+
 export function insertJob(job) {
   const db = getDb();
   try {

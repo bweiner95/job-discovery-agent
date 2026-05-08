@@ -17,7 +17,7 @@ Built to run inside [Claude Code](https://claude.ai/code) with the Chrome extens
 
 2. **Deduplicates** against a local SQLite database — you never see the same posting twice.
 
-3. **Scores each job 1–10** with Claude, based on your personal candidate profile, target roles, and preferences. Past "not a fit" feedback is fed back into scoring so the model learns from your decisions.
+3. **Scores each job 1–10** with Claude, based on your personal candidate profile, target roles, and preferences. Past "not a fit" feedback is fed back into scoring so the model learns from your decisions. Jobs scoring ≤ 3 (wrong geography, wrong industry, wrong function) are auto-archived so they don't clutter the triage view — they're still discoverable in the **Not a Fit** tab.
 
 4. **Tracks your application pipeline** by scanning Gmail — both inbound recruiter emails and the thank-you notes you send after interviews. Status advances automatically (Applied → Interview → Follow-up → Offer / Rejection).
 

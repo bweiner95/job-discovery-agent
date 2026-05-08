@@ -121,6 +121,19 @@ a duplicate row.
 Pass `USER_EMAIL=<your-email>` to `process-emails.js` so it can identify
 outbound emails reliably.
 
+## Auto-archive of low-scored jobs
+
+After scoring, both skill files run an auto-archive query that moves any
+job scoring ≤ 3 to `status = 'not_fit'` with the `score_reason` captured
+as `not_fit_reason`. Threshold rationale: the ≤ 3 band reliably contains
+hard non-fits (wrong geography, wrong industry, wrong function), while
+4–6 still includes borderline-legitimate options worth surfacing.
+
+The user can still find these in the Not a Fit tab and click ↩ Restore
+to bring them back to Open Roles. The feature lives in the skill files
+(both `scheduled-task/SKILL.md` and `skill/SKILL.md`) so any agent run
+applies it consistently.
+
 ## Dashboard tabs
 
 The dashboard at `http://localhost:3033` has four tabs:
