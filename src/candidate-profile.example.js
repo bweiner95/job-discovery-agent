@@ -95,6 +95,24 @@ LOCATIONS: New York, NY · San Francisco Bay Area · Remote-friendly hybrid
 // ─────────────────────────────────────────────────────────────────────────────────
 
 export const SCORING_RUBRIC = `
+YEARS-OF-EXPERIENCE GATE (apply FIRST, before any other rule):
+  Candidate has ~8 years of total experience.   /* ← edit to match yours */
+  Always check the JD for an explicit minimum YOE requirement
+  ("X+ years", "minimum X years", "at least X years"). YOE takes
+  priority over title — a strong title cannot rescue a YOE mismatch.
+
+  • JD requires ≤ 7 years       → no penalty
+  • JD requires 8–9 years       → no penalty (perfect match)
+  • JD requires 10 years        → cap final score at 7 (mild stretch)
+  • JD requires 11–12 years     → cap final score at 5 (significant gap)
+  • JD requires 13+ years       → cap final score at 3
+  • JD requires 15+ years (VP)  → cap final score at 2
+
+  If JD doesn't state YOE: infer from title (Director ≈ 10+, Sr Director ≈ 12+,
+  VP ≈ 15+) and apply the cap above.
+
+  Re-anchor the YOE numbers above to your actual years.
+
 SCORE 9–10 (near-perfect): All of the following are true —
   • Title is Senior Manager/Director/VP/Head of [Growth, User Growth, Retention,
     Strategy & Ops, Product Growth, or Growth Strategy]

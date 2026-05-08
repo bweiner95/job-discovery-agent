@@ -121,6 +121,15 @@ What do you want to filter out? Industries, company types, or roles to depriorit
 Example: "Pure B2B/enterprise SaaS with no consumer product. Biotech, healthcare, legal, or government sectors. Roles that are primarily people management without strategic scope."
 ```
 
+**2g. Years of experience**
+```
+How many years of total professional experience do you have? (e.g., 5, 8, 12)
+
+This is used to build a Years-of-Experience Gate in the scoring rubric. Jobs with
+JD requirements significantly above your YOE get auto-deprioritized — a "12+ years"
+listing won't waste a slot in your triage view if you have 6 years.
+```
+
 ---
 
 ## Step 3 — Write candidate-profile.js
@@ -141,6 +150,26 @@ Using the resume and all answers from Step 2, generate a rich, specific profile.
 - Reference the user's actual target titles in the 9–10 band (not generic placeholders)
 - Reference their actual ideal company types in the descriptions
 - Reference their actual salary floor in SALARY GUIDANCE
+- **Include a YEARS-OF-EXPERIENCE GATE at the top** of the rubric, parameterized to the user's actual YOE from Step 2g. The gate caps the final score when the JD requires significantly more experience than the candidate has. Use this template, replacing `{N}` with the user's number:
+
+  ```
+  YEARS-OF-EXPERIENCE GATE (apply FIRST, before any other rule):
+    Candidate has ~{N} years of total experience.
+    Always check the JD for an explicit minimum YOE requirement
+    ("X+ years", "minimum X", "at least X years"). YOE takes priority over
+    title — a strong title cannot rescue a YOE mismatch.
+
+    • JD requires ≤ {N-1} years      → no penalty
+    • JD requires {N} to {N+1} years → no penalty (perfect match)
+    • JD requires {N+2} years        → cap final score at 7 (mild stretch)
+    • JD requires {N+3} to {N+4}     → cap final score at 5 (significant gap)
+    • JD requires {N+5}+ years       → cap final score at 3
+    • JD requires {N+7}+ years (VP-tier) → cap final score at 2
+
+    If JD doesn't state YOE explicitly: infer from title (Director ≈ 10+,
+    Sr Director ≈ 12+, VP ≈ 15+) and apply the cap above.
+  ```
+
 - Make the rubric specific enough that Claude can distinguish a 9 from a 7 for this person's background
 
 Get the project path first:

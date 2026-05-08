@@ -121,6 +121,19 @@ a duplicate row.
 Pass `USER_EMAIL=<your-email>` to `process-emails.js` so it can identify
 outbound emails reliably.
 
+## Years-of-Experience gate
+
+The `SCORING_RUBRIC` in `src/candidate-profile.js` opens with a YOE gate
+that caps the final score when a job description's stated minimum
+experience exceeds the candidate's actual years. The thresholds (no
+penalty within ±2, cap at 7 / 5 / 3 / 2 for progressively larger gaps)
+are anchored to **the user's actual YOE** — `/job-hunt-setup` collects
+this in Step 2g and writes the gate parameterized to that number.
+
+If a user hand-edits `candidate-profile.js` from the example without
+running the wizard, the example template includes a working version
+defaulted to ~8 years with a comment to re-anchor.
+
 ## Auto-archive of low-scored jobs
 
 After scoring, both skill files run an auto-archive query that moves any
