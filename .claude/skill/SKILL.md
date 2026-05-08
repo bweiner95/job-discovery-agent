@@ -200,6 +200,23 @@ EOF
 
 Use this feedback as additional context — if the user repeatedly rejects similar roles, score similar new roles lower. If a strong pattern emerges, surface a rubric-update suggestion in the final summary (do NOT auto-edit the profile).
 
+**Auto-archive low scores** after scoring is complete: any job scoring ≤ 3 (wrong geography, wrong industry, wrong function) is moved to `not_fit` automatically so it doesn't clutter Open Roles. The score reason becomes the not_fit_reason. Run this after the scoring `UPDATE` block:
+
+```bash
+cd "<YOUR_PROJECT_PATH>"
+node --input-type=module << 'EOF'
+import { DatabaseSync } from 'node:sqlite';
+const db = new DatabaseSync('jobs.db');
+const r = db.prepare(`
+  UPDATE jobs SET status = 'not_fit',
+    not_fit_reason = COALESCE(score_reason, 'Auto-archived: score ' || score || ' below fit threshold')
+  WHERE score <= 3 AND (status IS NULL OR status = 'active') AND duplicate_of IS NULL
+`).run();
+console.log('Auto-archived', r.changes, 'low-scored jobs');
+db.close();
+EOF
+```
+
 Query unscored jobs:
 ```bash
 cd "<YOUR_PROJECT_PATH>"

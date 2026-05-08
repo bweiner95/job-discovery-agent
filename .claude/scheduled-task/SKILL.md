@@ -122,6 +122,28 @@ EOF
 
 Then query unscored jobs and score each 1–10 using CANDIDATE_PROFILE, SCORING_RUBRIC, **and the user feedback above**. Use the feedback as additional context — if the user repeatedly rejects similar roles, score similar new roles lower; if a pattern is strong enough that the rubric should be permanently updated, surface that suggestion in the briefing (don't auto-edit the profile). Update DB with scores.
 
+**After scoring, auto-archive obvious non-fits** so they don't clutter Open Roles. Any job scoring ≤ 3 (wrong geography, wrong industry, wrong function) gets `status = 'not_fit'` automatically with the score reason captured. The user can still find them in the Not a Fit tab if they want to verify the call.
+
+```bash
+cd "/Users/benweiner/Documents/Claude Code/job-discovery-agent"
+node --input-type=module << 'EOF'
+import { DatabaseSync } from 'node:sqlite';
+const db = new DatabaseSync('jobs.db');
+const r = db.prepare(`
+  UPDATE jobs
+  SET status = 'not_fit',
+      not_fit_reason = COALESCE(score_reason, 'Auto-archived: score ' || score || ' below fit threshold')
+  WHERE score <= 3
+    AND (status IS NULL OR status = 'active')
+    AND duplicate_of IS NULL
+`).run();
+console.log('Auto-archived ' + r.changes + ' low-scored jobs');
+db.close();
+EOF
+```
+
+Surface the auto-archive count in the final briefing so the user knows how many were filtered.
+
 ```bash
 cd "<YOUR_PROJECT_PATH>"
 node --input-type=module << 'EOF'
