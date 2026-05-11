@@ -19,6 +19,7 @@ import {
   findCrossSourceDuplicate,
   markAsDuplicate,
   findJobBySourceAndJobId,
+  getScraperCutoff,
 } from './db.js';
 
 async function runAgent() {
@@ -37,18 +38,22 @@ async function runAgent() {
   } catch { /* never block the agent on update-check failures */ }
 
   const firstRun = isFirstRun();
+  const cutoff = getScraperCutoff();   // null on first run; otherwise the more-inclusive of last-run-minus-safety vs. 7-day floor
   if (firstRun) {
-    console.log('First run detected — fetching all available jobs (no 24 h filter)');
+    console.log('First run detected — fetching all available jobs (no time filter)');
+  } else if (cutoff) {
+    const ageDays = ((Date.now() - cutoff.getTime()) / 86_400_000).toFixed(1);
+    console.log(`Looking for jobs posted since ${cutoff.toISOString().slice(0, 10)} (${ageDays} days ago)`);
   }
 
   // ── 1. Fetch from all sources concurrently ─────────────────────────────────────────
   console.log('\nFetching jobs from all sources…');
   const [serpResult, linkedinResult, ghResult, leverResult, ashbyResult] = await Promise.allSettled([
-    fetchSerpApiJobs(firstRun),
-    fetchLinkedInJobs(firstRun),
-    fetchGreenhouseJobs(firstRun),
-    fetchLeverJobs(firstRun),
-    fetchAshbyJobs(firstRun),
+    fetchSerpApiJobs(firstRun),       // SerpAPI uses time-window URL params; still pass first-run flag
+    fetchLinkedInJobs(firstRun),      // LinkedIn guest API likewise
+    fetchGreenhouseJobs(cutoff),
+    fetchLeverJobs(cutoff),
+    fetchAshbyJobs(cutoff),
   ]);
 
   function unwrap(result, name) {

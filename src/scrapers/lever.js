@@ -78,9 +78,11 @@ async function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-export async function fetchLeverJobs(isFirstRun) {
+export async function fetchLeverJobs(cutoffOrFirstRun) {
   const jobs = [];
-  const cutoff = isFirstRun ? null : new Date(Date.now() - 24 * 60 * 60 * 1_000);
+  const cutoff = (cutoffOrFirstRun === true || cutoffOrFirstRun == null)
+    ? null
+    : (cutoffOrFirstRun instanceof Date ? cutoffOrFirstRun : new Date(cutoffOrFirstRun));
 
   for (const slug of COMPANIES) {
     try {

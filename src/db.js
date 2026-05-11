@@ -191,3 +191,39 @@ export function recordRun(jobsFound, jobsEmailed) {
     .prepare('INSERT INTO runs (jobs_found, jobs_emailed) VALUES (?, ?)')
     .run(jobsFound, jobsEmailed);
 }
+
+/**
+ * Returns the timestamp of the most recent run, or null if none.
+ * Used by the scrapers to set their "newer than X" cutoff so weekends/
+ * gaps don't cause us to miss jobs.
+ */
+export function getLastRunTime() {
+  const db = getDb();
+  const row = db.prepare(`SELECT ran_at FROM runs ORDER BY id DESC LIMIT 1`).get();
+  if (!row?.ran_at) return null;
+  // SQLite stores datetime('now') in UTC without timezone — parse as UTC
+  return new Date(row.ran_at + 'Z');
+}
+
+/**
+ * Compute the scraper cutoff date. Returns the more recent of:
+ *  - last successful run timestamp minus a small safety margin
+ *  - a hard MIN_LOOKBACK floor (so we don't miss jobs between gappy runs)
+ *  - a hard MAX_LOOKBACK ceiling (so first runs after a long break don't
+ *    fetch ancient history)
+ *
+ * Returns null if it's a first run (no cutoff — fetch everything).
+ */
+export function getScraperCutoff() {
+  if (isFirstRun()) return null;
+  const last = getLastRunTime();
+  const now = Date.now();
+  const MIN_LOOKBACK_MS = 7  * 24 * 60 * 60 * 1000;   // always look back at least 7 days
+  const MAX_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000;   // never look back more than 30 days
+  const SAFETY_MS       = 60 * 60 * 1000;             // 1h safety overlap before last run
+  const candidates = [];
+  if (last) candidates.push(last.getTime() - SAFETY_MS);
+  candidates.push(now - MIN_LOOKBACK_MS);
+  const cutoff = Math.min(...candidates);            // EARLIER (older) wins → more inclusive
+  return new Date(Math.max(cutoff, now - MAX_LOOKBACK_MS));
+}
