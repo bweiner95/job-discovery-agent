@@ -105,6 +105,33 @@ EOF
 
 **After all 3 cities are scraped, descriptions enriched, and stored**, close the LinkedIn tab to keep the user's browser tidy. Call `mcp__Claude_in_Chrome__tabs_close_mcp` with the `tabId` from the earlier `tabs_context_mcp` call. If the close fails (tab already closed by user, etc.), continue silently.
 
+### Step 2.5 — Ali Rohde Jobs Substack (weekly, Fridays)
+
+Ali Rohde sends a weekly Substack newsletter ("Edition N: Ali Rohde Jobs") with curated Chief of Staff / BizOps / VC roles. Search for the most recent edition not yet processed; parse and store.
+
+```
+mcp__gmail__search_emails: from:alirohdejobs@substack.com after:YYYY/MM/DD
+```
+
+For each unprocessed edition (compare subject "Edition NNN" against most recent `e{NNN}-...` job_id in DB), fetch the full body via `mcp__gmail__read_email` and pipe the JSON to the processor:
+
+```bash
+cd "<YOUR_PROJECT_PATH>"
+python3 -c "
+import json
+print(json.dumps({
+  'subject': '<EMAIL SUBJECT>',
+  'messageId': '<MSG_ID>',
+  'date': 'YYYY-MM-DD',
+  'body': '''<FULL PLAIN-TEXT BODY HERE>'''
+}))
+" | node scripts/process-alirohde-email.js
+```
+
+The processor parses the listings, resolves each Substack redirect to the real ATS URL, and inserts new jobs with `source='alirohde'`. Output reports `{ edition, totalParsed, new, dupes, crossSourceDupes, resolved }`.
+
+If the search returns nothing newer than the most recent edition already in the DB, skip this step silently.
+
 ### Step 3 — Score new jobs
 
 Read `src/candidate-profile.js`. **Before scoring, query recent user feedback on jobs they marked "not a fit"** so you can incorporate it into your scoring decisions:

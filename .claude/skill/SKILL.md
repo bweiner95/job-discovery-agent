@@ -183,6 +183,22 @@ EOF
 
 **After all 3 cities are scraped, descriptions enriched, and stored**, close the LinkedIn tab so it doesn't linger in the user's browser. Call `mcp__Claude_in_Chrome__tabs_close_mcp` with the `tabId` from the earlier `tabs_context_mcp` call. If the close fails (tab already closed, etc.), continue silently.
 
+### Step 2.5 — Ali Rohde Jobs Substack (weekly)
+
+Search `mcp__gmail__search_emails` for `from:alirohdejobs@substack.com after:YYYY/MM/DD`. For each new edition (compare subject "Edition NNN" against existing `e{NNN}-...` job_ids in the DB), fetch the full body and pass to:
+
+```bash
+cd "<YOUR_PROJECT_PATH>"
+python3 -c "
+import json
+print(json.dumps({'subject': '<SUBJECT>', 'messageId': '<MSG_ID>', 'date': 'YYYY-MM-DD', 'body': '''<BODY>'''}))
+" | node scripts/process-alirohde-email.js
+```
+
+The processor parses listings, resolves Substack redirects to real ATS URLs, and inserts with `source='alirohde'`. Output: `{ edition, totalParsed, new, dupes, crossSourceDupes, resolved }`.
+
+Skip silently if no new editions are found.
+
 ### Step 3 — Score new jobs natively
 
 Read `src/candidate-profile.js`. **First, query recent user feedback on jobs they marked "not a fit"** so you can use it as context when scoring:
