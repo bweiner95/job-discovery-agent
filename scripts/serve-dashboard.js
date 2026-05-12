@@ -664,6 +664,12 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:
 .run-btn.running{color:#6F8F80;border-color:#6F8F80;animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
+/* ── Back-to-top button ── */
+#back-to-top{position:fixed;bottom:24px;right:24px;width:44px;height:44px;border-radius:50%;border:1px solid #DDD8D1;background:#fff;color:#6F8F80;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;box-shadow:0 4px 14px rgba(28,28,28,.10);opacity:0;visibility:hidden;transform:translateY(8px);transition:opacity 200ms ease,transform 200ms ease,background-color 150ms ease,color 150ms ease;z-index:90}
+#back-to-top.visible{opacity:1;visibility:visible;transform:translateY(0)}
+#back-to-top:hover{background:#6F8F80;color:#fff;border-color:#6F8F80}
+#back-to-top:focus-visible{outline:2px solid #6F8F80;outline-offset:2px}
+
 /* ── Log drawer ── */
 #log-drawer{position:fixed;bottom:0;left:0;right:0;height:340px;background:#1C1A18;border-top:2px solid #6F8F80;transform:translateY(100%);transition:transform 280ms cubic-bezier(.4,0,.2,1);z-index:100;display:flex;flex-direction:column;box-shadow:0 -8px 32px rgba(0,0,0,.25)}
 #log-drawer.open{transform:translateY(0)}
@@ -778,6 +784,9 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:
     </div>
   </div>
 </div>
+
+<!-- Back to top -->
+<button id="back-to-top" onclick="scrollToTop()" aria-label="Back to top" title="Back to top">↑</button>
 
 <!-- Log drawer -->
 <div id="log-drawer">
@@ -1000,6 +1009,17 @@ let activeSource = 'all';
 
 // ── Init: run default filters on load ────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => applyFilters());
+
+// ── Back-to-top button ───────────────────────────────────────────────────────
+function scrollToTop() {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+window.addEventListener('scroll', () => {
+  const btn = document.getElementById('back-to-top');
+  if (!btn) return;
+  if (window.scrollY > 400) btn.classList.add('visible');
+  else btn.classList.remove('visible');
+}, { passive: true });
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────
 function showTab(name, el) {
