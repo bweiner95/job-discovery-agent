@@ -664,9 +664,9 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:
 .run-btn.running{color:#6F8F80;border-color:#6F8F80;animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
-/* ── Back-to-top button (top center, floats above sticky topbar) ── */
-#back-to-top{position:fixed;top:20px;left:50%;width:44px;height:44px;border-radius:50%;border:1px solid #DDD8D1;background:#fff;color:#6F8F80;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;box-shadow:0 4px 14px rgba(28,28,28,.10);opacity:0;visibility:hidden;transform:translateX(-50%) translateY(-8px);transition:opacity 200ms ease,transform 200ms ease,background-color 150ms ease,color 150ms ease;z-index:90}
-#back-to-top.visible{opacity:1;visibility:visible;transform:translateX(-50%) translateY(0)}
+/* ── Back-to-top button (top-right, just below the sticky topbar) ── */
+#back-to-top{position:fixed;top:84px;right:32px;width:40px;height:40px;border-radius:50%;border:1px solid #DDD8D1;background:#fff;color:#6F8F80;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;box-shadow:0 4px 14px rgba(28,28,28,.10);opacity:0;visibility:hidden;transform:translateY(-8px);transition:opacity 200ms ease,transform 200ms ease,background-color 150ms ease,color 150ms ease;z-index:90}
+#back-to-top.visible{opacity:1;visibility:visible;transform:translateY(0)}
 #back-to-top:hover{background:#6F8F80;color:#fff;border-color:#6F8F80}
 #back-to-top:focus-visible{outline:2px solid #6F8F80;outline-offset:2px}
 
