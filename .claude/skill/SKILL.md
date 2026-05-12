@@ -216,19 +216,25 @@ EOF
 
 Use this feedback as additional context — if the user repeatedly rejects similar roles, score similar new roles lower. If a strong pattern emerges, surface a rubric-update suggestion in the final summary (do NOT auto-edit the profile).
 
-**Auto-archive low scores** after scoring is complete: any job scoring ≤ 3 (wrong geography, wrong industry, wrong function) is moved to `not_fit` automatically so it doesn't clutter Open Roles. The score reason becomes the not_fit_reason. Run this after the scoring `UPDATE` block:
+**Auto-archive low scores AND stale LinkedIn listings** after scoring. Low-score auto-archive (≤ 3) catches obvious non-fits. Stale-LinkedIn auto-archive removes listings >14 days old (LinkedIn's r604800 filter only surfaces past-week jobs, so older listings are almost always closed/filled). Both run after the scoring `UPDATE`:
 
 ```bash
 cd "<YOUR_PROJECT_PATH>"
 node --input-type=module << 'EOF'
 import { DatabaseSync } from 'node:sqlite';
 const db = new DatabaseSync('jobs.db');
-const r = db.prepare(`
+const lowScore = db.prepare(`
   UPDATE jobs SET status = 'not_fit',
     not_fit_reason = COALESCE(score_reason, 'Auto-archived: score ' || score || ' below fit threshold')
   WHERE score <= 3 AND (status IS NULL OR status = 'active') AND duplicate_of IS NULL
 `).run();
-console.log('Auto-archived', r.changes, 'low-scored jobs');
+const stale = db.prepare(`
+  UPDATE jobs SET status = 'not_fit',
+    not_fit_reason = 'Auto-archived: LinkedIn listing >14 days old, likely no longer accepting applications'
+  WHERE source='linkedin' AND (status IS NULL OR status='active') AND duplicate_of IS NULL
+    AND created_at < datetime('now', '-14 days')
+`).run();
+console.log('Auto-archived', lowScore.changes, 'low-scored +', stale.changes, 'stale LinkedIn');
 db.close();
 EOF
 ```

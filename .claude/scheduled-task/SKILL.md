@@ -149,27 +149,33 @@ EOF
 
 Then query unscored jobs and score each 1–10 using CANDIDATE_PROFILE, SCORING_RUBRIC, **and the user feedback above**. Use the feedback as additional context — if the user repeatedly rejects similar roles, score similar new roles lower; if a pattern is strong enough that the rubric should be permanently updated, surface that suggestion in the briefing (don't auto-edit the profile). Update DB with scores.
 
-**After scoring, auto-archive obvious non-fits** so they don't clutter Open Roles. Any job scoring ≤ 3 (wrong geography, wrong industry, wrong function) gets `status = 'not_fit'` automatically with the score reason captured. The user can still find them in the Not a Fit tab if they want to verify the call.
+**After scoring, run two auto-archive passes** so Open Roles stays signal-dense:
+
+1. **Low scores (≤ 3)** — wrong geography, wrong industry, wrong function. Captures the score reason as the not_fit_reason so the user can verify in the Not a Fit tab.
+2. **Stale LinkedIn listings (>14 days old)** — LinkedIn's `f_TPR=r604800` filter only surfaces past-week postings, so any LinkedIn job still in the DB after 14 days is very likely closed/filled. Marking it as not_fit with a clear reason prevents the user from clicking through to "no longer accepting applications" pages.
 
 ```bash
 cd "/Users/benweiner/Documents/Claude Code/job-discovery-agent"
 node --input-type=module << 'EOF'
 import { DatabaseSync } from 'node:sqlite';
 const db = new DatabaseSync('jobs.db');
-const r = db.prepare(`
-  UPDATE jobs
-  SET status = 'not_fit',
-      not_fit_reason = COALESCE(score_reason, 'Auto-archived: score ' || score || ' below fit threshold')
-  WHERE score <= 3
-    AND (status IS NULL OR status = 'active')
-    AND duplicate_of IS NULL
+const lowScore = db.prepare(`
+  UPDATE jobs SET status = 'not_fit',
+    not_fit_reason = COALESCE(score_reason, 'Auto-archived: score ' || score || ' below fit threshold')
+  WHERE score <= 3 AND (status IS NULL OR status = 'active') AND duplicate_of IS NULL
 `).run();
-console.log('Auto-archived ' + r.changes + ' low-scored jobs');
+const stale = db.prepare(`
+  UPDATE jobs SET status = 'not_fit',
+    not_fit_reason = 'Auto-archived: LinkedIn listing >14 days old, likely no longer accepting applications'
+  WHERE source = 'linkedin' AND (status IS NULL OR status = 'active') AND duplicate_of IS NULL
+    AND created_at < datetime('now', '-14 days')
+`).run();
+console.log('Auto-archived ' + lowScore.changes + ' low-scored + ' + stale.changes + ' stale LinkedIn');
 db.close();
 EOF
 ```
 
-Surface the auto-archive count in the final briefing so the user knows how many were filtered.
+Surface both counts in the final briefing so the user knows how many were filtered.
 
 ```bash
 cd "<YOUR_PROJECT_PATH>"
