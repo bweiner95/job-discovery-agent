@@ -36,24 +36,16 @@ Note the output: per-source counts and total fetched, new vs. duplicates.
 
 **If Chrome MCP errors occur** (disconnect, batch failure, JS timeout): do NOT skip — fall back to `navigate` + `get_page_text` and extract job titles/companies/locations from the page text. Less precise but keeps LinkedIn in the run.
 
-For each search below, navigate to the URL, scroll for more results, extract job cards, and store.
+Read the user's LinkedIn search URLs from `src/candidate-profile.js` — the `LINKEDIN_SEARCH_URLS` array contains one URL per target city, each pre-built with the user's keywords and the past-week filter. Iterate through each URL.
 
-#### 2a. New York
-```
-https://www.linkedin.com/jobs/search/?keywords=Head+of+Growth+OR+Director+of+Growth+OR+VP+Growth+OR+Director+of+Strategy+OR+Strategy+Operations&location=New+York%2C+United+States&f_TPR=r604800
-```
-
-#### 2b. San Francisco
-```
-https://www.linkedin.com/jobs/search/?keywords=Head+of+Growth+OR+Director+of+Growth+OR+VP+Growth+OR+Director+of+Strategy+OR+Strategy+Operations&location=San+Francisco+Bay+Area&f_TPR=r604800
+```bash
+cd "<YOUR_PROJECT_PATH>"
+node --input-type=module -e "import('./src/candidate-profile.js').then(p => console.log(JSON.stringify(p.LINKEDIN_SEARCH_URLS ?? [])))"
 ```
 
-#### 2c. Los Angeles
-```
-https://www.linkedin.com/jobs/search/?keywords=Head+of+Growth+OR+Director+of+Growth+OR+VP+Growth+OR+Director+of+Strategy+OR+Strategy+Operations&location=Los+Angeles+Metropolitan+Area&f_TPR=r604800
-```
+If the array is empty or undefined (user hasn't run setup yet), skip Step 2 entirely.
 
-**For each page**, run this extraction script via `mcp__Claude_in_Chrome__javascript_tool`:
+**For each URL**, run this extraction script via `mcp__Claude_in_Chrome__javascript_tool` after navigating:
 
 ```javascript
 // Scroll the jobs list panel to load more cards

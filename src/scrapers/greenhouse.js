@@ -5,35 +5,26 @@
 // To add or remove companies, edit the COMPANIES array below.
 // Find a company's Greenhouse slug at: https://boards.greenhouse.io/{slug}
 
-const COMPANIES = [
-  // Social / messaging / entertainment
-  'discord', 'reddit', 'pinterest', 'roblox', 'twitch',
-  'nextdoor', 'poshmark', 'patreon',
-
-  // Consumer marketplace / e-commerce
-  'airbnb', 'doordash', 'etsy', 'wayfair', 'chewy',
-  'fiverr', 'rover', 'opentable', 'vivid-seats',
-
-  // Consumer fintech / payments
-  'robinhood', 'affirm', 'chime', 'nerdwallet', 'plaid',
-  'marqeta', 'klarna', 'wealthfront',
-
-  // Subscription / SaaS with large consumer base
-  'squarespace', 'peloton', 'classpass', 'masterclass',
-
-  // DTC consumer brands
-  'warbyparker', 'allbirds', 'glossier', 'casper', 'away',
-  'stitchfix', 'bonobos', 'rhone',
-
-  // Travel & hospitality
-  'expedia', 'tripadvisor', 'hopper', 'getyourguide',
-
-  // High-growth consumer tech
-  'gopuff', 'grubhub', 'goldbelly',
-
-  // Payments / infrastructure with consumer products
-  'stripe', 'twilio',
+// Small generic fallback used only when src/candidate-profile.js doesn't
+// export GREENHOUSE_COMPANIES (e.g., before setup runs). Edit your own
+// list in src/candidate-profile.js, not here.
+const FALLBACK_COMPANIES = [
+  'airbnb', 'discord', 'stripe', 'doordash', 'pinterest',
 ];
+
+let _companies = null;
+async function getCompanies() {
+  if (_companies) return _companies;
+  try {
+    const profile = await import('../candidate-profile.js');
+    _companies = Array.isArray(profile.GREENHOUSE_COMPANIES) && profile.GREENHOUSE_COMPANIES.length
+      ? profile.GREENHOUSE_COMPANIES
+      : FALLBACK_COMPANIES;
+  } catch {
+    _companies = FALLBACK_COMPANIES;
+  }
+  return _companies;
+}
 
 const ROLE_KEYWORDS = [
   'growth',
@@ -82,6 +73,7 @@ export async function fetchGreenhouseJobs(cutoffOrFirstRun) {
     ? null
     : (cutoffOrFirstRun instanceof Date ? cutoffOrFirstRun : new Date(cutoffOrFirstRun));
 
+  const COMPANIES = await getCompanies();
   for (const slug of COMPANIES) {
     try {
       const res = await fetch(

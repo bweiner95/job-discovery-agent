@@ -4,33 +4,26 @@
 //
 // To add or remove companies, edit the COMPANIES array below.
 
-const COMPANIES = [
-  // Consumer marketplace / commerce
-  'whatnot', 'faire', 'gopuff',
-
-  // Consumer AI / creative / entertainment
-  'suno', 'cursor', 'openai', 'anthropic', 'replit',
-  'huggingface', 'perplexity',
-
-  // Consumer fintech / payments
-  'mercury', 'cash-app', 'ramp', 'gigs', 'kikoff',
-
-  // Consumer social / content
-  'substack', 'discord-corp',
-
-  // Health / wellness consumer
-  'ouraring', 'wholeproject', 'whoop',
-
-  // Travel / mobility consumer
-  'rippling',
-
-  // Developer tools with consumer brand recognition
-  'linear', 'posthog', 'vercel', 'browserbase',
-
-  // High-growth consumer
-  'decagon', 'nscale', 'sentilink', 'stepful',
-  'crusoe', 'physicalintelligence',
+// Small generic fallback used only when src/candidate-profile.js doesn't
+// export ASHBY_COMPANIES (e.g., before setup runs). Edit your own list
+// in src/candidate-profile.js, not here.
+const FALLBACK_COMPANIES = [
+  'whatnot', 'linear', 'openai', 'anthropic', 'mercury',
 ];
+
+let _companies = null;
+async function getCompanies() {
+  if (_companies) return _companies;
+  try {
+    const profile = await import('../candidate-profile.js');
+    _companies = Array.isArray(profile.ASHBY_COMPANIES) && profile.ASHBY_COMPANIES.length
+      ? profile.ASHBY_COMPANIES
+      : FALLBACK_COMPANIES;
+  } catch {
+    _companies = FALLBACK_COMPANIES;
+  }
+  return _companies;
+}
 
 const ROLE_KEYWORDS = [
   'growth',
@@ -93,6 +86,7 @@ export async function fetchAshbyJobs(cutoffOrFirstRun) {
     ? null
     : (cutoffOrFirstRun instanceof Date ? cutoffOrFirstRun : new Date(cutoffOrFirstRun));
 
+  const COMPANIES = await getCompanies();
   for (const slug of COMPANIES) {
     try {
       const res = await fetch(

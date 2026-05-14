@@ -36,22 +36,14 @@ This single command runs all three ATS scrapers (Greenhouse, Lever, Ashby) in pa
 
 **Fallback (if JS/batch fails)**: Use `mcp__Claude_in_Chrome__navigate` then `mcp__Claude_in_Chrome__get_page_text` to get the raw page text, then extract job titles/companies/locations from the text using pattern matching. This won't capture job IDs or external URLs but will capture the job listings. Store with `source: 'linkedin'` and `job_id` set to a hash or sequential placeholder.
 
-Scrape each search URL, extract job cards, enrich with external apply URLs where possible, store results.
+Read the LinkedIn search URLs from `src/candidate-profile.js` — the `LINKEDIN_SEARCH_URLS` array contains one URL per target city, each pre-built with the user's target keywords and the past-week filter (`f_TPR=r604800`). Iterate through each URL, scrape the cards, and store.
 
-#### New York
-```
-https://www.linkedin.com/jobs/search/?keywords=Head+of+Growth+OR+Director+of+Growth+OR+VP+Growth+OR+Director+of+Strategy+OR+Strategy+Operations&location=New+York%2C+United+States&f_TPR=r604800
-```
-
-#### San Francisco
-```
-https://www.linkedin.com/jobs/search/?keywords=Head+of+Growth+OR+Director+of+Growth+OR+VP+Growth+OR+Director+of+Strategy+OR+Strategy+Operations&location=San+Francisco+Bay+Area&f_TPR=r604800
+```bash
+cd "<YOUR_PROJECT_PATH>"
+node --input-type=module -e "import('./src/candidate-profile.js').then(p => console.log(JSON.stringify(p.LINKEDIN_SEARCH_URLS ?? [])))"
 ```
 
-#### Los Angeles
-```
-https://www.linkedin.com/jobs/search/?keywords=Head+of+Growth+OR+Director+of+Growth+OR+VP+Growth+OR+Director+of+Strategy+OR+Strategy+Operations&location=Los+Angeles+Metropolitan+Area&f_TPR=r604800
-```
+If the array is empty or undefined (user hasn't run setup yet), skip Step 2 entirely.
 
 For each page, extract job cards (scroll + extract JS), enrich external URLs, then store:
 ```bash

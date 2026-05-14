@@ -162,3 +162,34 @@ SALARY GUIDANCE:
 NOTE: When in doubt between 6 and 7 for a consumer tech company, choose 7.
 A missed great opportunity is worse than reviewing one borderline result.
 `.trim();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SEARCH / SCRAPER TARGETS
+//
+// Customize who and where the agent looks for jobs. The scrapers and skill
+// files read these arrays at runtime — no need to edit code or markdown.
+// The /job-hunt-setup wizard populates these for new users; edit any time
+// afterward.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// LinkedIn search URLs — one per target city. Build each URL on
+// linkedin.com/jobs by entering your keywords + location + "Past week"
+// filter, then copy the full URL with f_TPR=r604800.
+export const LINKEDIN_SEARCH_URLS = [
+  // 'https://www.linkedin.com/jobs/search/?keywords=YOUR+KEYWORDS&location=City%2C+State&f_TPR=r604800',
+];
+
+// Greenhouse company slugs to scrape. Find each at https://boards.greenhouse.io/{slug}
+export const GREENHOUSE_COMPANIES = [
+  // 'airbnb', 'discord', 'stripe',
+];
+
+// Lever company slugs. Find each at https://jobs.lever.co/{slug}
+export const LEVER_COMPANIES = [
+  // 'netflix', 'spotify', 'figma',
+];
+
+// Ashby company slugs. Find each at https://jobs.ashbyhq.com/{slug}
+export const ASHBY_COMPANIES = [
+  // 'whatnot', 'linear', 'notion',
+];

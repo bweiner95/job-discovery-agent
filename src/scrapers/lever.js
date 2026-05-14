@@ -5,40 +5,26 @@
 // The slug is usually the company's lowercase name as it appears in their Lever URL:
 // https://jobs.lever.co/{slug}
 
-const COMPANIES = [
-  // Entertainment / streaming
-  'netflix', 'spotify', 'hulu', 'patreon',
-
-  // Social / dating / community
-  'hinge', 'bumble', 'discord',
-
-  // Consumer fintech
-  'square', 'coinbase', 'brex', 'ramp', 'robinhood',
-  'wealthsimple', 'dave',
-
-  // Health & wellness consumer apps
-  'noom', 'hims', 'ro', 'calm', 'headspace', 'duolingo',
-  'strava', 'whoop', 'oura', 'flo',
-
-  // Consumer SaaS / productivity with large user bases
-  'figma', 'notion', 'airtable', 'loom', 'canva',
-
-  // Analytics / data tools
-  'amplitude', 'mixpanel',
-
-  // Marketplace / commerce
-  'faire', 'depop', 'stockx', 'goat', 'grailed',
-  'thumbtack', 'taskrabbit',
-
-  // Food / delivery / consumer
-  'instacart', 'gopuff',
-
-  // Travel
-  'turo', 'getaround', 'hippo',
-
-  // HR / workforce tools with consumer-facing products
-  'gusto', 'lattice', 'deel',
+// Small generic fallback used only when src/candidate-profile.js doesn't
+// export LEVER_COMPANIES (e.g., before setup runs). Edit your own list
+// in src/candidate-profile.js, not here.
+const FALLBACK_COMPANIES = [
+  'netflix', 'spotify', 'figma', 'notion', 'instacart',
 ];
+
+let _companies = null;
+async function getCompanies() {
+  if (_companies) return _companies;
+  try {
+    const profile = await import('../candidate-profile.js');
+    _companies = Array.isArray(profile.LEVER_COMPANIES) && profile.LEVER_COMPANIES.length
+      ? profile.LEVER_COMPANIES
+      : FALLBACK_COMPANIES;
+  } catch {
+    _companies = FALLBACK_COMPANIES;
+  }
+  return _companies;
+}
 
 const ROLE_KEYWORDS = [
   'growth',
@@ -84,6 +70,7 @@ export async function fetchLeverJobs(cutoffOrFirstRun) {
     ? null
     : (cutoffOrFirstRun instanceof Date ? cutoffOrFirstRun : new Date(cutoffOrFirstRun));
 
+  const COMPANIES = await getCompanies();
   for (const slug of COMPANIES) {
     try {
       const res = await fetch(

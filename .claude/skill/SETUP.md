@@ -145,6 +145,16 @@ Using the resume and all answers from Step 2, generate a rich, specific profile.
 - **NOT A FIT**: Use the user's Step 2f answer, expand slightly if their background makes other exclusions obvious.
 - **SALARY + LOCATIONS**: Use exact numbers/cities from Steps 2c and 2d.
 
+**Search targets — these get exported as separate constants in the same file (not part of CANDIDATE_PROFILE):**
+
+- **`LINKEDIN_SEARCH_URLS`**: Build one URL per city from Step 2c. Each URL pattern:
+  `https://www.linkedin.com/jobs/search/?keywords=<URL_ENCODED_TITLES_FROM_2b>&location=<URL_ENCODED_CITY>&f_TPR=r604800`
+  Titles should be joined with `+OR+`. The `f_TPR=r604800` is the past-week filter — keep it.
+
+- **`GREENHOUSE_COMPANIES`, `LEVER_COMPANIES`, `ASHBY_COMPANIES`**: From the user's industries answer in Step 2e, suggest 20–60 company slugs per ATS that match their target industries. Use only well-known companies that actually use each ATS. The user can edit later. Verify slugs exist at `boards.greenhouse.io/{slug}` / `jobs.lever.co/{slug}` / `jobs.ashbyhq.com/{slug}` — but don't actually network-check during setup, just use known-good slugs you're confident in.
+
+The scrapers and skill files read these arrays at runtime — no need to edit code or markdown elsewhere.
+
 **SCORING_RUBRIC guidelines:**
 
 - Reference the user's actual target titles in the 9–10 band (not generic placeholders)
@@ -181,93 +191,31 @@ Then write the file using the Write tool. Do not use placeholder text — write 
 
 ---
 
-## Step 4 — Update location filters in scrapers
+## Step 4 — (No scraper edits needed)
 
-Based on the cities from Step 2c, update the `LOCATION_KEYWORDS` array in both scraper files.
+Targets live in `candidate-profile.js` (which you wrote in Step 3). The
+scrapers and skill files read from there at runtime — no code or markdown
+edits required. Skip ahead.
 
-**City → keyword mapping:**
-
-| City | Keywords to include |
-|---|---|
-| New York | `'new york'`, `'ny'`, `'nyc'` |
-| San Francisco | `'san francisco'`, `'bay area'` |
-| Los Angeles | `'los angeles'`, `'la'` |
-| Chicago | `'chicago'`, `'il'` |
-| Austin | `'austin'`, `'tx'` |
-| Seattle | `'seattle'`, `'wa'` |
-| Boston | `'boston'`, `'ma'` |
-| Miami | `'miami'`, `'fl'` |
-| Denver | `'denver'`, `'co'` |
-| Atlanta | `'atlanta'`, `'ga'` |
-| Remote | always add `'remote'` if user included Remote |
-
-Collect all keywords from the user's cities, always include `'remote'`, then use the Edit tool to replace the `LOCATION_KEYWORDS` array in both files:
-
-**`src/scrapers/greenhouse.js`** — find and replace the `LOCATION_KEYWORDS` array.
-
-**`src/scrapers/lever.js`** — same replacement.
-
-Also update `LOCATIONS` in **`src/scrapers/serpapi.js`**:
-
-| City | SerpAPI location string |
-|---|---|
-| New York | `'New York, NY'` |
-| San Francisco | `'San Francisco Bay Area, CA'` |
-| Los Angeles | `'Los Angeles, CA'` |
-| Chicago | `'Chicago, IL'` |
-| Austin | `'Austin, TX'` |
-| Seattle | `'Seattle, WA'` |
-| Boston | `'Boston, MA'` |
-| Miami | `'Miami, FL'` |
-| Denver | `'Denver, CO'` |
-| Atlanta | `'Atlanta, GA'` |
+If the user needs to refresh location filters for the `LOCATION_KEYWORDS`
+substring matcher in `src/scrapers/greenhouse.js` and `lever.js`, that's
+a generic match by city name (e.g., `'new york'`, `'remote'`) — defaults
+work for any US-targeted user.
 
 ---
 
-## Step 5 — Patch the Claude skill files
+## Step 5 — Patch project path in skill files
 
 Get the absolute project path:
 ```bash
 pwd
 ```
 
-Then update both skill files:
+In both `.claude/skill/SKILL.md` and `.claude/scheduled-task/SKILL.md`,
+replace every occurrence of `<YOUR_PROJECT_PATH>` with the path from `pwd`.
 
-**Files to update:**
-- `.claude/skill/SKILL.md`
-- `.claude/scheduled-task/SKILL.md`
-
-**Changes to make in each file:**
-
-1. **Replace `<YOUR_PROJECT_PATH>`** — replace every occurrence with the absolute path from `pwd`.
-
-2. **Replace LinkedIn search URLs** — build new URLs from the user's titles (Step 2b) and cities (Step 2c).
-
-   URL format:
-   ```
-   https://www.linkedin.com/jobs/search/?keywords=KEYWORDS&location=LOCATION&f_TPR=r604800
-   ```
-
-   Keywords: take the user's target titles (up to 6), wrap each in double quotes, join with `+OR+`, URL-encode spaces as `+`.
-   Example: `"Head+of+Growth"+OR+"Director+of+Growth"+OR+"VP+Growth"`
-
-   LinkedIn location strings by city:
-   | City | LinkedIn location parameter |
-   |---|---|
-   | New York | `New+York%2C+United+States` |
-   | San Francisco | `San+Francisco+Bay+Area` |
-   | Los Angeles | `Los+Angeles+Metropolitan+Area` |
-   | Chicago | `Chicago%2C+Illinois%2C+United+States` |
-   | Austin | `Austin%2C+Texas%2C+United+States` |
-   | Seattle | `Seattle%2C+Washington%2C+United+States` |
-   | Boston | `Boston%2C+Massachusetts%2C+United+States` |
-   | Miami | `Miami%2C+Florida%2C+United+States` |
-   | Denver | `Denver%2C+Colorado%2C+United+States` |
-   | Atlanta | `Atlanta%2C+Georgia%2C+United+States` |
-
-   Generate one URL per city (up to 3). Update the section headers (### 2a, ### 2b, ### 2c) to match the user's cities.
-
-Use the Edit tool to make these replacements in both skill files.
+LinkedIn URLs and company lists do NOT need patching — they're read
+dynamically from `candidate-profile.js` at runtime.
 
 ---
 
