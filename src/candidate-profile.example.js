@@ -133,8 +133,13 @@ SCORE 7–8 (strong match): Most of the following are true —
 SCORE 5–6 (moderate fit): One or more meaningful gaps —
   • Right function but primarily a B2B company — consumer angle is thin or unclear
   • Right company but role is too narrowly operational (e.g. campaign ops, channel ops)
-  • Manager-level title at a company where Senior Manager is the appropriate comp band
   • Geography is ambiguous or city isn't in target list
+
+  NOTE ON TITLE: "Manager" alone is NOT a downgrade. Treat any title (Manager, Senior
+  Manager, Lead, Director, Head) as a fit if the JD's stated YOE requirement aligns
+  with your years AND the salary is at or near your floor. Only penalize a title when
+  scope reads as execution-only (e.g., "campaign manager," "account manager") or when
+  the YOE/salary signal is clearly below your level.
 
 SCORE 1–4 (poor fit): Any of these —
   • Wrong function: sales ops, revenue ops, finance, HR, engineering, pure data science
