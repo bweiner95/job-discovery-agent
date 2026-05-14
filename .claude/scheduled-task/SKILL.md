@@ -137,7 +137,7 @@ If the search returns nothing newer than the most recent edition already in the 
 Read `src/candidate-profile.js`. **Before scoring, query recent user feedback on jobs they marked "not a fit"** so you can incorporate it into your scoring decisions:
 
 ```bash
-cd "/Users/benweiner/Documents/Claude Code/job-discovery-agent"
+cd "<YOUR_PROJECT_PATH>"
 node --input-type=module << 'EOF'
 import { DatabaseSync } from 'node:sqlite';
 const db = new DatabaseSync('jobs.db');
@@ -155,7 +155,7 @@ Then query unscored jobs and score each 1–10 using CANDIDATE_PROFILE, SCORING_
 2. **Stale LinkedIn listings (>14 days old)** — LinkedIn's `f_TPR=r604800` filter only surfaces past-week postings, so any LinkedIn job still in the DB after 14 days is very likely closed/filled. Marking it as not_fit with a clear reason prevents the user from clicking through to "no longer accepting applications" pages.
 
 ```bash
-cd "/Users/benweiner/Documents/Claude Code/job-discovery-agent"
+cd "<YOUR_PROJECT_PATH>"
 node --input-type=module << 'EOF'
 import { DatabaseSync } from 'node:sqlite';
 const db = new DatabaseSync('jobs.db');
@@ -260,7 +260,7 @@ Pass `USER_EMAIL` so the classifier knows which emails are outbound (sent by the
 
 ```bash
 cd "<YOUR_PROJECT_PATH>"
-USER_EMAIL=bweiner95@gmail.com node scripts/process-emails.js << 'EMAILEOF'
+USER_EMAIL=your.email@gmail.com node scripts/process-emails.js << 'EMAILEOF'
 [PASTE JSON ARRAY HERE — both inbound and outbound emails combined]
 EMAILEOF
 ```
@@ -316,7 +316,7 @@ cd "<YOUR_PROJECT_PATH>" && pm2 start scripts/serve-dashboard.js --name job-dash
 
 When querying new roles for the briefing, only include jobs with `status = 'active'` or `status IS NULL` — exclude `status = 'applied'` and `status = 'not_fit'`. Example:
 ```bash
-cd "/Users/benweiner/Documents/Claude Code/job-discovery-agent"
+cd "<YOUR_PROJECT_PATH>"
 node --input-type=module << 'EOF'
 import { DatabaseSync } from 'node:sqlite';
 const db = new DatabaseSync('jobs.db');
