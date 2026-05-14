@@ -1441,9 +1441,36 @@ function toggleSection(header) {
 
 // ─── HTTP server ──────────────────────────────────────────────────────────────
 
+// Same-origin guard: even though we bind to 127.0.0.1, browsers will happily
+// send cross-origin POST/SSE requests from any tab the user has open. A
+// malicious page on evil.com could trigger /api/run-stream (which spawns
+// Claude Code with bypassPermissions) just by including an EventSource. We
+// reject state-changing requests unless the Origin or Referer header points
+// back at the dashboard. Cross-origin GET-only HTML loads are still fine
+// (they don't carry an Origin header).
+function isSameOriginRequest(req) {
+  const allowed = [`http://localhost:${PORT}`, `http://127.0.0.1:${PORT}`];
+  const origin  = req.headers['origin'];
+  const referer = req.headers['referer'];
+  if (origin)  return allowed.includes(origin);
+  if (referer) return allowed.some(a => referer.startsWith(a + '/') || referer === a);
+  return false;
+}
+
 const server = http.createServer((req, res) => {
   const url  = new URL(req.url, `http://localhost:${PORT}`);
   const path = url.pathname;
+
+  // State-changing endpoints + the privileged SSE run-stream require same-origin.
+  const isStateChanging = req.method !== 'GET' && req.method !== 'HEAD';
+  const isPrivilegedSse = req.method === 'GET' && path === '/api/run-stream';
+  if (isStateChanging || isPrivilegedSse) {
+    if (!isSameOriginRequest(req)) {
+      res.writeHead(403, { 'Content-Type': 'text/plain' });
+      res.end('Forbidden: cross-origin request blocked');
+      return;
+    }
+  }
 
   if (req.method === 'POST' && /^\/api\/jobs\/(\d+)\/(notfit|restore|applied|unapplied)$/.test(path)) {
     const [, id, action] = path.match(/^\/api\/jobs\/(\d+)\/(notfit|restore|applied|unapplied)$/);
@@ -1586,6 +1613,10 @@ const server = http.createServer((req, res) => {
   res.writeHead(404); res.end('Not found');
 });
 
-server.listen(PORT, () => {
+// Bind only to localhost (127.0.0.1). Without this, Node would listen on all
+// interfaces, exposing the dashboard to anyone on the LAN. The dashboard has
+// no auth and one of its endpoints (/api/run-stream) spawns Claude Code with
+// bypassPermissions — must not be reachable from outside this machine.
+server.listen(PORT, '127.0.0.1', () => {
   console.log(`Dashboard running at http://localhost:${PORT}`);
 });
