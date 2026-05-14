@@ -98,8 +98,9 @@ export const SCORING_RUBRIC = `
 YEARS-OF-EXPERIENCE GATE (apply FIRST, before any other rule):
   Candidate has ~8 years of total experience.   /* ← edit to match yours */
   Always check the JD for an explicit minimum YOE requirement
-  ("X+ years", "minimum X years", "at least X years"). YOE takes
-  priority over title — a strong title cannot rescue a YOE mismatch.
+  ("X+ years", "minimum X years", "at least X years"). YOE is the
+  primary seniority signal — title is descriptive but does not
+  override it.
 
   • JD requires ≤ 7 years       → no penalty
   • JD requires 8–9 years       → no penalty (perfect match)
@@ -108,23 +109,32 @@ YEARS-OF-EXPERIENCE GATE (apply FIRST, before any other rule):
   • JD requires 13+ years       → cap final score at 3
   • JD requires 15+ years (VP)  → cap final score at 2
 
-  If JD doesn't state YOE: infer from title (Director ≈ 10+, Sr Director ≈ 12+,
-  VP ≈ 15+) and apply the cap above.
+  If JD doesn't state YOE: infer from typical seniority for the function in your
+  target industries and apply the cap above.
 
   Re-anchor the YOE numbers above to your actual years.
 
+TITLE IS DESCRIPTIVE, NOT A SCORE INPUT:
+  Title alone (Manager, Senior Manager, Lead, Director, VP, Head, Chief of Staff)
+  never raises or lowers the score by itself. Titles vary wildly across companies
+  and industries — what matters is the underlying YOE requirement, salary, function,
+  and scope described in the JD. A "Manager" role at a strong company with your YOE
+  and at-floor salary is the same fit signal as a "Director" role with identical
+  YOE/salary expectations. Use title to UNDERSTAND the role, not to RATE it.
+
 SCORE 9–10 (near-perfect): All of the following are true —
-  • Title is Senior Manager/Director/VP/Head of [Growth, User Growth, Retention,
-    Strategy & Ops, Product Growth, or Growth Strategy]
+  • Function is squarely on target (use your target role list as the reference)
+  • YOE requirement aligns with your experience
+  • Salary listed at or above your floor (or not listed at a senior role where typical)
   • Company is a consumer-facing tech company with meaningful scale (DAU/MAU matter)
     Examples: social, health/wellness, marketplace, gaming, entertainment, dating apps
   • Location is New York or SF Bay Area (or remote-friendly)
   • Description signals a data-driven, product-led culture with real experimentation
-  • Role involves both strategy AND execution ownership — not just advisory
+  • Scope is both strategy AND execution ownership — not just advisory
 
 SCORE 7–8 (strong match): Most of the following are true —
-  • Title is right function but seniority is slightly off (e.g. Manager vs. Senior Manager,
-    or SVP if scope is appropriate), OR title wording varies but role is clearly growth/strategy
+  • Function fits target buckets (title wording may vary)
+  • YOE requirement is within ±2 years of yours
   • Company is consumer-facing but adjacent to ideal (fintech with consumer product,
     B2C SaaS, large DTC brand, or well-known consumer platform)
   • Location matches or remote option is available
@@ -132,19 +142,15 @@ SCORE 7–8 (strong match): Most of the following are true —
 
 SCORE 5–6 (moderate fit): One or more meaningful gaps —
   • Right function but primarily a B2B company — consumer angle is thin or unclear
-  • Right company but role is too narrowly operational (e.g. campaign ops, channel ops)
+  • Right company but scope is too narrowly operational (e.g. campaign ops, channel ops)
+  • Salary listed clearly below your floor
   • Geography is ambiguous or city isn't in target list
 
-  NOTE ON TITLE: "Manager" alone is NOT a downgrade. Treat any title (Manager, Senior
-  Manager, Lead, Director, Head) as a fit if the JD's stated YOE requirement aligns
-  with your years AND the salary is at or near your floor. Only penalize a title when
-  scope reads as execution-only (e.g., "campaign manager," "account manager") or when
-  the YOE/salary signal is clearly below your level.
-
 SCORE 1–4 (poor fit): Any of these —
-  • Wrong function: sales ops, revenue ops, finance, HR, engineering, pure data science
+  • Wrong function: sales ops, revenue ops, finance, HR, engineering, pure data science,
+    facilities/real estate, compliance, legal
   • Industry mismatch: healthcare, biotech, legal, government, pure enterprise
-  • Clearly too junior (analyst, associate, coordinator) or too senior (C-suite executive)
+  • Scope is clearly entry-level (analyst, associate, coordinator) regardless of title
   • No consumer product element whatsoever
   • Outside target geography with no remote option stated
 
