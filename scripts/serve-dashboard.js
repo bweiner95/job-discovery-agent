@@ -297,6 +297,69 @@ function computeAnalytics(rawApplications) {
   };
 }
 
+// ─── Demo mode data ──────────────────────────────────────────────────────────
+// Returns a fully-populated dashboard view with realistic mock data so the
+// user can screenshot/share without exposing their real pipeline. Visit
+// http://localhost:3033/?demo=true to see it.
+function getDemoData() {
+  const today = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  const daysAgo = n => new Date(Date.now() - n * 86400000).toISOString().slice(0, 19).replace('T', ' ');
+
+  const jobs = [
+    { id: 1001, source: 'ashby',      job_id: 'demo-1',  title: 'Director, Strategy & Operations', company: 'Notion',     location: 'San Francisco, CA · New York, NY · Remote', score: 9, score_reason: "Top consumer-adjacent productivity brand, Director title at right level, multi-city US with remote option. S&O role with cross-functional scope. Near-perfect fit.", salary: '$280K/yr', url: 'https://example.com', external_url: 'https://example.com', created_at: daysAgo(0), status: 'active', also_on: [] },
+    { id: 1002, source: 'linkedin',   job_id: 'demo-2',  title: 'Head of Growth',                  company: 'Replit',     location: 'San Francisco, CA (Hybrid)', score: 9, score_reason: "Replit is high-growth consumer dev tool. Head of Growth title fits target list, SF hybrid. Strong brand and category leader.", salary: '$260K/yr', url: '#', external_url: '#', created_at: daysAgo(0), status: 'active', also_on: ['ashby'] },
+    { id: 1003, source: 'greenhouse', job_id: 'demo-3',  title: 'Senior Director, Strategy & Growth Initiatives', company: 'Chime', location: 'San Francisco, CA', score: 9, score_reason: "Consumer fintech, Senior Director at right level for ~8y experience. Exact target function. SF on-site is acceptable.", salary: '$295K/yr', url: '#', external_url: '#', created_at: daysAgo(1), status: 'active', also_on: [] },
+    { id: 1004, source: 'linkedin',   job_id: 'demo-4',  title: 'Head of C2C Activation, North America', company: 'eBay',    location: 'San Jose, CA (Hybrid)', score: 8, score_reason: "Top consumer marketplace, Head title, C2C marketplace growth scope. Bay Area Hybrid is workable.", salary: null,        url: '#', external_url: '#', created_at: daysAgo(1), status: 'active', also_on: [] },
+    { id: 1005, source: 'ashby',      job_id: 'demo-5',  title: 'Chief of Staff to CEO',           company: 'Linear',     location: 'Remote', score: 8, score_reason: "Linear is best-in-class dev tool, CoS to CEO at growth-stage, remote-friendly. Right level, strong brand, growth-strategy work.", salary: '$245K/yr', url: '#', external_url: '#', created_at: daysAgo(2), status: 'active', also_on: ['alirohde'] },
+    { id: 1006, source: 'linkedin',   job_id: 'demo-6',  title: 'Director, New Verticals Strategy & Operations', company: 'DoorDash', location: 'New York, NY (Hybrid)', score: 8, score_reason: "DoorDash is top consumer delivery, Director title at right level, NYC hybrid, S&O scope. Strong fit.", salary: null,         url: '#', external_url: '#', created_at: daysAgo(2), status: 'active', also_on: [] },
+    { id: 1007, source: 'greenhouse', job_id: 'demo-7',  title: 'Strategy & Operations Lead',     company: 'Discord',     location: 'New York, NY', score: 8, score_reason: "Discord is top consumer social, Lead title (Director-equivalent at consumer co with title compression), NYC.", salary: '$235K/yr', url: '#', external_url: '#', created_at: daysAgo(3), status: 'active', also_on: [] },
+    { id: 1008, source: 'lever',      job_id: 'demo-8',  title: 'Director of Product Growth',     company: 'Spotify',     location: 'New York, NY', score: 8, score_reason: "Spotify is iconic consumer brand. Director of Product Growth fits target function. NYC. Strong consumer subscription growth context.", salary: '$270K/yr', url: '#', external_url: '#', created_at: daysAgo(3), status: 'active', also_on: [] },
+    { id: 1009, source: 'alirohde',   job_id: 'demo-9',  title: 'Business Operations & Strategy Manager', company: 'Figma', location: 'San Francisco, CA (Hybrid)', score: 7, score_reason: "Figma is leading design tool with consumer-adjacent brand recognition. BizOps & Strategy at SF hybrid, Manager title fine for level.", salary: null,        url: '#', external_url: '#', created_at: daysAgo(4), status: 'active', also_on: [] },
+    { id: 1010, source: 'linkedin',   job_id: 'demo-10', title: 'Director, Strategic Initiatives, Digital Gaming', company: 'Mattel', location: 'El Segundo, CA', score: 7, score_reason: "Mattel is iconic consumer brand (toys/gaming/Barbie momentum), Director title, $195K listed (at floor). LA-acceptable on-site.", salary: '$195K', url: '#', external_url: '#', created_at: daysAgo(4), status: 'active', also_on: [] },
+    { id: 1011, source: 'ashby',      job_id: 'demo-11', title: 'Senior Manager, Business Operations',    company: 'Whatnot',   location: 'Los Angeles, CA · New York, NY · Remote', score: 7, score_reason: "Whatnot is top consumer livestream marketplace, multi-city US. Sr Manager fits level. Active S&O hiring at growth-stage.", salary: '$210K/yr', url: '#', external_url: '#', created_at: daysAgo(5), status: 'active', also_on: ['linkedin'] },
+    { id: 1012, source: 'linkedin',   job_id: 'demo-12', title: 'Manager, AV Strategy & Business Operations', company: 'Lyft',  location: 'San Francisco, CA (Hybrid)', score: 7, score_reason: "Lyft is consumer mobility brand, SF, AV is a strategic bet area. Manager title fine for ~8y if YOE/salary align.", salary: null,         url: '#', external_url: '#', created_at: daysAgo(5), status: 'active', also_on: [] },
+    { id: 1013, source: 'greenhouse', job_id: 'demo-13', title: 'Director, Strategy & Operations',         company: 'Pinterest', location: 'New York, NY (Hybrid)', score: 7, score_reason: "Pinterest is consumer social discovery, Director title, NYC hybrid. Right industry + level.", salary: null,         url: '#', external_url: '#', created_at: daysAgo(6), status: 'active', also_on: [] },
+    { id: 1014, source: 'alirohde',   job_id: 'demo-14', title: 'Chief of Staff',                  company: 'Cash App',     location: 'San Francisco, CA (Hybrid)', score: 7, score_reason: "Cash App (Block) is top consumer fintech, CoS title fits target, SF hybrid. Brand recognition + scale.", salary: null,         url: '#', external_url: '#', created_at: daysAgo(6), status: 'active', also_on: [] },
+    { id: 1015, source: 'lever',      job_id: 'demo-15', title: 'Head of Growth Marketing',         company: 'Hims & Hers',  location: 'New York, NY (Hybrid)', score: 7, score_reason: "Hims & Hers is consumer DTC health brand. Head of Growth Marketing scope is broad. NYC hybrid.", salary: '$250K/yr',  url: '#', external_url: '#', created_at: daysAgo(7), status: 'active', also_on: [] },
+  ];
+
+  const appliedJobs = [
+    { id: 2001, source: 'linkedin',   job_id: 'demo-a1', title: 'Director of Growth',              company: 'Webflow',    location: 'New York, NY (Hybrid)', score: 8, score_reason: "Strong fit.", salary: null, url: '#', external_url: '#', created_at: daysAgo(8),  status: 'applied' },
+    { id: 2002, source: 'ashby',      job_id: 'demo-a2', title: 'Strategy & Operations Lead',      company: 'Vercel',      location: 'San Francisco (Remote)', score: 8, score_reason: "Lead-level fit at consumer-adjacent dev tools.", salary: null, url: '#', external_url: '#', created_at: daysAgo(10), status: 'applied' },
+    { id: 2003, source: 'greenhouse', job_id: 'demo-a3', title: 'Senior Manager, Business Operations', company: 'Robinhood', location: 'New York, NY', score: 8, score_reason: "Consumer fintech + NYC + Sr Manager = strong.", salary: '$220K/yr', url: '#', external_url: '#', created_at: daysAgo(12), status: 'applied' },
+  ];
+
+  const notFitJobs = [
+    { id: 3001, source: 'linkedin',   job_id: 'demo-n1', title: 'Senior Director, Strategy & Operations', company: 'Snowflake', location: 'San Mateo, CA', score: 6, score_reason: 'B2B enterprise data warehouse — outside consumer target.', salary: null, url: '#', external_url: '#', created_at: daysAgo(9), status: 'not_fit', not_fit_reason: 'Wrong industry — pure B2B enterprise SaaS' },
+    { id: 3002, source: 'ashby',      job_id: 'demo-n2', title: 'Manager, Revenue Operations',    company: 'Datadog',    location: 'New York, NY', score: 4, score_reason: 'Revenue Operations at B2B = sales focus, outside target function.', salary: null, url: '#', external_url: '#', created_at: daysAgo(11), status: 'not_fit', not_fit_reason: 'RevOps at B2B — wrong function and industry' },
+    { id: 3003, source: 'alirohde',   job_id: 'demo-n3', title: 'Chief of Staff',                  company: 'Oscar Health', location: 'New York, NY', score: 2, score_reason: 'Healthcare excluded.', salary: null, url: '#', external_url: '#', created_at: daysAgo(14), status: 'not_fit', not_fit_reason: 'Healthcare is excluded in profile' },
+  ];
+
+  // Pipeline applications across the funnel stages
+  const applications = [
+    { id: 'p1', company: 'Notion',    role: 'Director, Strategy & Operations',     current_status: 'offer',               last_activity_date: daysAgo(1), date_applied: daysAgo(28), is_cold: 0, gmail_thread_id: 'd-1', next_step: 'Reviewing offer terms', notes: null, created_at: daysAgo(28) },
+    { id: 'p2', company: 'Linear',    role: 'Chief of Staff to CEO',               current_status: 'interview_follow_up', last_activity_date: daysAgo(3), date_applied: daysAgo(21), is_cold: 0, gmail_thread_id: 'd-2', next_step: 'Sent thank-you after final round', notes: null, created_at: daysAgo(21) },
+    { id: 'p3', company: 'Spotify',   role: 'Director of Product Growth',          current_status: 'interview_scheduled', last_activity_date: daysAgo(2), date_applied: daysAgo(18), is_cold: 0, gmail_thread_id: 'd-3', next_step: 'Hiring manager interview next Tue', notes: null, created_at: daysAgo(18) },
+    { id: 'p4', company: 'Replit',    role: 'Head of Growth',                       current_status: 'interview_scheduled', last_activity_date: daysAgo(4), date_applied: daysAgo(16), is_cold: 0, gmail_thread_id: 'd-4', next_step: 'Onsite scheduled Thu', notes: null, created_at: daysAgo(16) },
+    { id: 'p5', company: 'Webflow',   role: 'Director of Growth',                   current_status: 'take_home_submitted', last_activity_date: daysAgo(5), date_applied: daysAgo(14), is_cold: 0, gmail_thread_id: 'd-5', next_step: 'Awaiting take-home feedback', notes: null, created_at: daysAgo(14) },
+    { id: 'p6', company: 'Discord',   role: 'Strategy & Operations Lead',           current_status: 'recruiter_outreach',  last_activity_date: daysAgo(2), date_applied: null,        is_cold: 0, gmail_thread_id: 'd-6', next_step: 'Reply with availability', notes: null, created_at: daysAgo(2) },
+    { id: 'p7', company: 'Whatnot',   role: 'Senior Manager, Business Operations', current_status: 'application_viewed',  last_activity_date: daysAgo(6), date_applied: daysAgo(11), is_cold: 0, gmail_thread_id: 'd-7', next_step: null, notes: null, created_at: daysAgo(11) },
+    { id: 'p8', company: 'Cash App',  role: 'Chief of Staff',                       current_status: 'applied',             last_activity_date: daysAgo(7), date_applied: daysAgo(7),  is_cold: 0, gmail_thread_id: 'd-8', next_step: null, notes: null, created_at: daysAgo(7) },
+    { id: 'p9', company: 'Vercel',    role: 'Strategy & Operations Lead',           current_status: 'applied',             last_activity_date: daysAgo(10), date_applied: daysAgo(10), is_cold: 0, gmail_thread_id: 'd-9', next_step: null, notes: null, created_at: daysAgo(10) },
+    { id: 'p10', company: 'Robinhood', role: 'Senior Manager, Business Operations', current_status: 'applied',             last_activity_date: daysAgo(12), date_applied: daysAgo(12), is_cold: 0, gmail_thread_id: 'd-10', next_step: null, notes: null, created_at: daysAgo(12) },
+    { id: 'p11', company: 'Pinterest',role: 'Director, Strategy & Operations',     current_status: 'applied',             last_activity_date: daysAgo(15), date_applied: daysAgo(15), is_cold: 1, gmail_thread_id: 'd-11', next_step: null, notes: null, created_at: daysAgo(15) },
+    { id: 'p12', company: 'Mattel',   role: 'Director, Strategic Initiatives',     current_status: 'applied',             last_activity_date: daysAgo(20), date_applied: daysAgo(20), is_cold: 1, gmail_thread_id: 'd-12', next_step: null, notes: null, created_at: daysAgo(20) },
+    { id: 'p13', company: 'Lyft',     role: 'Manager, AV Strategy & Business Ops', current_status: 'applied',             last_activity_date: daysAgo(22), date_applied: daysAgo(22), is_cold: 1, gmail_thread_id: 'd-13', next_step: null, notes: null, created_at: daysAgo(22) },
+    { id: 'p14', company: 'Stripe',   role: 'Strategy & Operations Lead',           current_status: 'rejection',           last_activity_date: daysAgo(4), date_applied: daysAgo(19), is_cold: 0, gmail_thread_id: 'd-14', next_step: null, notes: null, created_at: daysAgo(19) },
+    { id: 'p15', company: 'Snowflake',role: 'Senior Director, Strategy & Ops',     current_status: 'rejection',           last_activity_date: daysAgo(8), date_applied: daysAgo(25), is_cold: 0, gmail_thread_id: 'd-15', next_step: null, notes: null, created_at: daysAgo(25) },
+    { id: 'p16', company: 'Oscar Health', role: 'Chief of Staff',                   current_status: 'rejection',           last_activity_date: daysAgo(13), date_applied: daysAgo(26), is_cold: 0, gmail_thread_id: 'd-16', next_step: null, notes: null, created_at: daysAgo(26) },
+  ];
+
+  const analytics = computeAnalytics(applications);
+
+  return { jobs, appliedJobs, notFitJobs, applications: dedupeApplications(applications), analytics };
+}
+
 function updateJobStatus(id, status, reason = null) {
   const db = openJobsDb();
   if (!db) return false;
@@ -1478,13 +1541,21 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.method === 'GET' && (path === '/' || path === '/index.html')) {
+    // Demo mode: ?demo=true returns the dashboard populated with sanitized mock
+    // data. Useful for screenshots / sharing without exposing the user's real
+    // pipeline. Real DB is untouched.
+    if (url.searchParams.get('demo') === 'true') {
+      const demo = getDemoData();
+      const html = renderPage(demo.jobs, demo.notFitJobs, demo.appliedJobs, demo.applications, demo.analytics);
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(html);
+      return;
+    }
+
     const jobs        = getJobs();
     const notFitJobs  = getNotFitJobs();
     const appliedJobs = getAppliedJobs();
     const rawApplications = getApplications();
-    // Dedupe by (company, role) — keep the most-advanced status. Same logic
-    // used for analytics so the Pipeline tab counts/sections match the
-    // Analytics tab numbers.
     const applications = dedupeApplications(rawApplications);
     const analytics  = computeAnalytics(rawApplications);
     const html = renderPage(jobs, notFitJobs, appliedJobs, applications, analytics);
