@@ -351,7 +351,7 @@ function fmtDate(d) {
 }
 
 function sourceLabel(source) {
-  const map = { greenhouse: 'Greenhouse', lever: 'Lever', linkedin: 'LinkedIn', serpapi: 'Google', ashby: 'Ashby', alirohde: 'Ali Rohde' };
+  const map = { greenhouse: 'Greenhouse', lever: 'Lever', linkedin: 'LinkedIn', serpapi: 'Google', ashby: 'Ashby', alirohde: 'Newsletters' };
   return map[source] || source;
 }
 
@@ -813,7 +813,7 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:
       <button class="source-pill" onclick="filterSource('linkedin',this)">LinkedIn ${countLinkedIn}</button>
       <button class="source-pill" onclick="filterSource('greenhouse',this)">Greenhouse ${countGreenhouse}</button>
       <button class="source-pill" onclick="filterSource('ashby',this)">Ashby ${countAshby}</button>
-      <button class="source-pill" onclick="filterSource('alirohde',this)">Ali Rohde ${countAliRohde}</button>
+      <button class="source-pill" onclick="filterSource('alirohde',this)">Newsletters ${countAliRohde}</button>
     </div>
   </div>
 </div>
