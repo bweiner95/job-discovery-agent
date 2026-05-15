@@ -97,14 +97,22 @@ rate-limit, etc.) are tolerated silently.
 
 ## Adding companies to scrape
 
-- **Greenhouse**: append slugs to `COMPANIES` in `src/scrapers/greenhouse.js`
-  - Find slugs at: `https://boards.greenhouse.io/{slug}`
-- **Lever**: append slugs to `COMPANIES` in `src/scrapers/lever.js`
-  - Find slugs at: `https://jobs.lever.co/{slug}`
-- **Ashby**: append slugs to `COMPANIES` in `src/scrapers/ashby.js`
-  - Find slugs at: `https://jobs.ashbyhq.com/{slug}`
-  - Ashby's API returns full job descriptions inline, so scoring is more accurate
-    for these jobs than for Greenhouse/Lever ones.
+Company slugs live in `src/candidate-profile.js` (git-ignored), NOT in the
+scraper files. Edit the `GREENHOUSE_COMPANIES`, `LEVER_COMPANIES`, and
+`ASHBY_COMPANIES` arrays there. The scrapers import them at runtime; the
+slug lists hardcoded in `src/scrapers/*.js` are tiny generic fallbacks only.
+
+- Greenhouse slugs: `https://boards.greenhouse.io/{slug}`
+- Lever slugs: `https://jobs.lever.co/{slug}`
+- Ashby slugs: `https://jobs.ashbyhq.com/{slug}` (Ashby returns full
+  descriptions inline → more accurate scoring than GH/Lever)
+
+**Slug rot is real.** Companies migrate between ATS providers and change
+slugs. A dead slug isn't fatal (the scraper skips it) but wastes a request
++ 250ms per run. Run `node scripts/verify-slugs.js` periodically (monthly)
+to see which slugs are live vs dead, and `node scripts/verify-slugs.js --dead`
+to get a prune list. As of 2026-05-15, Lever has rotted heavily for consumer
+companies — most have moved to Greenhouse/Ashby.
 
 ## Application pipeline tracking
 
